@@ -1,7 +1,10 @@
 #ifndef _MESSAGE_H
 #define _MESSAGE_H
 
-#include <bits/stdc++.h> 
+// #include <bits/stdc++.h> 
+#include <iostream>
+#include <vector>
+#include <algorithm>
 #include <stdlib.h> 
 #include <unistd.h> 
 #include <string.h> 

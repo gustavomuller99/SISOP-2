@@ -79,7 +79,7 @@ void send_broadcast(Packet p, int sockfd, int port) {
     sendto(sockfd, 
         _payload, 
         strlen(_payload),
-        MSG_CONFIRM, 
+        0, 
         (const struct sockaddr *) &serv_addr,
         sizeof(serv_addr));
 
