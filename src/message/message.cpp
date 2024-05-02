@@ -86,6 +86,10 @@ void send_broadcast(Packet p, int sockfd, int port) {
     return;
 }
 
+void send_broadcast_tcp(Packet p, int sockfd, int port) {
+    
+}
+
 Packet rec_packet(int sockfd) {
     char rbuf[BUFFER_SIZE] = {};
     
@@ -99,5 +103,9 @@ Packet rec_packet(int sockfd) {
     p.src_ip = inet_ntoa(rec_addr.sin_addr);
 
     return p;
+}
+
+Packet rec_packet_tcp(int sockfd) {
+    return Packet(MessageType::SleepServiceDiscovery, 0, 0);
 }
 

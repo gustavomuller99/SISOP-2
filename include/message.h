@@ -11,6 +11,7 @@
 
 /* 30000 - 34999 */
 const int PORT_DISCOVERY = 30000;
+const int PORT_MONITORING = 31000;
 
 const int BUFFER_SIZE = 256;
 
@@ -45,8 +46,10 @@ private:
 
 /* send packet on broadcast using port and socket  */
 void send_broadcast(Packet p, int sockfd, int port);
+void send_broadcast_tcp(Packet p, int sockfd, int port);
 
 /* waits for packcage and parses into object */
 Packet rec_packet(int sockfd);
+Packet rec_packet_tcp(int sockfd);
 
 #endif //_MESSAGE_H
