@@ -86,10 +86,6 @@ void send_broadcast(Packet p, int sockfd, int port) {
     return;
 }
 
-void send_broadcast_tcp(Packet p, int sockfd, int port) {
-    
-}
-
 Packet rec_packet(int sockfd) {
     char rbuf[BUFFER_SIZE] = {};
     
@@ -105,7 +101,29 @@ Packet rec_packet(int sockfd) {
     return p;
 }
 
-Packet rec_packet_tcp(int sockfd) {
-    return Packet(MessageType::SleepServiceDiscovery, 0, 0);
-}
+// void send_broadcast_tcp(Packet p, int sockfd) {
+    // std::string str = p.to_payload();
+    // const char* _payload = str.c_str();
+
+    // write(sockfd,
+    // _payload, 
+    // strlen(_payload));
+
+    // return;
+// }
+
+// Packet rec_packet_tcp(int sockfd) {
+    // char rbuf[BUFFER_SIZE] = {};
+    
+    // sockaddr_in rec_addr;
+    //socklen_t len = sizeof(rec_addr);
+    
+    // if (read(sockfd, rbuf, sizeof(rbuf) - 1) < 0) 
+    //    exit(EXIT_FAILURE); 
+
+    // Packet p = Packet(rbuf);
+    // p.src_ip = inet_ntoa(rec_addr.sin_addr);
+
+    // return p;
+// }
 

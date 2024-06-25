@@ -38,18 +38,55 @@ void *Host::discovery(void *ctx) {
 
 void *Host::monitoring(void *ctx) {
     Host *h = ((Host *) ctx);
-
     int trueflag = 1;
 
-    if ((h->sck_monitoring = socket(AF_INET, SOCK_DGRAM, 0)) < 0) 
+    if ((h->sck_monitoring = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+        printf("Host (Monitoring): ERROR opening socket\n");
         exit(EXIT_FAILURE); 
+    }
 
-    if (setsockopt(h->sck_monitoring, SOL_SOCKET, SO_BROADCAST, &trueflag, sizeof trueflag) < 0)
+    if (setsockopt(h->sck_monitoring, SOL_SOCKET, SO_REUSEADDR, &trueflag, sizeof(trueflag)) < 0) {
+        printf("Manager (Monitoring): ERROR setting socket timeout");
         exit(EXIT_FAILURE);
+    }
 
-    while (h->state == HostState::Asleep || h->state == HostState::Awaken) {
-        Packet p = rec_packet(h->sck_monitoring);
+    struct sockaddr_in manager_addr;
+    struct sockaddr_in guest_addr;
+    socklen_t addr_len = sizeof(struct sockaddr_in);
+
+
+    memset(&guest_addr, 0, sizeof(guest_addr));
+    guest_addr.sin_family = AF_INET;
+    guest_addr.sin_port = htons(PORT_MONITORING);
+    guest_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    
+    if (bind(h->sck_monitoring, (struct sockaddr*) &guest_addr, addr_len) < 0){
+        printf("Host (Monitoring): ERROR binding\n");
+        exit(EXIT_FAILURE);
+    }
+
+    listen(h->sck_monitoring, 5);
+
+    if ((h->sck_monitoring = accept(h->sck_monitoring, (struct sockaddr *) &manager_addr, &addr_len)) < 0) {
+        perror("Host (Monitoring): ERROR on accept");
+        exit(EXIT_FAILURE);
+    }
+
+    while (1) {
+        char buffer[256];
+
+        if (read(h->sck_monitoring, buffer, BUFFER_SIZE) < 0) {
+            perror("Host (Monitoring): ERROR reading from socket"); 
+        }
+
+        Packet p = Packet(buffer);
+        p.src_ip = inet_ntoa(manager_addr.sin_addr);
         p.print();
+
+        // n = write(h->sck_monitoring, "I got your message", 18);
+        // if (n < 0) {
+        //     perror("Host (Monitoring): ERROR writing to socket"); 
+        // }
     }
 
     return 0;
