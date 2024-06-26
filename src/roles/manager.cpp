@@ -80,47 +80,52 @@ void *Manager::monitoring(void *ctx) {
         exit(EXIT_FAILURE);
     }
 
-    // listen(m->sck_monitoring, 5);
-
     while (1) {
         
-        for (const auto& host : m->hosts) {
+        for (auto& host : m->hosts) {
             std::cout << "IP: " << host.ip << ", State: " << host.state << std::endl;
 
             struct sockaddr_in guest_addr;
 
+            memset(&guest_addr, 0, sizeof(guest_addr));
             guest_addr.sin_family = AF_INET;
-            guest_addr.sin_port = htons(PORT_MONITORING); // Porta onde o participante está ouvindo
+            guest_addr.sin_port = htons(PORT_MONITORING);
             inet_aton(host.ip.c_str(), &guest_addr.sin_addr);
 
-            if (connect(m->sck_monitoring, (struct sockaddr *)&guest_addr, sizeof(guest_addr)) < 0) {
-                // perror("Manager (Monitoring): Error connecting to participant");
+            connect(m->sck_monitoring, (struct sockaddr *)&guest_addr, sizeof(guest_addr));
+
+            Packet request = Packet(MessageType::SleepServiceRequest, 0, 0);
+            std::string str = request.to_payload();
+            const char* _request = str.c_str();
+
+            // Sending Packet to Host
+            if (write(m->sck_monitoring, _request, strlen(_request)) < 0) {
+                perror("Manager (Monitoring): Error writing to socket");
                 continue;
-            } 
-            else {
-                Packet p = Packet(MessageType::SleepServiceRequest, 0, 0);
-                std::string str = p.to_payload();
-                const char* _payload = str.c_str();
-
-                // Sending Packet to Host
-                if (write(m->sck_monitoring, _payload, strlen(_payload)) < 0) {
-                    perror("Manager (Monitoring): Error writing to socket");
-                    continue; // Pular para o próximo participante em caso de erro
-                }
-
-                // Receiveing Packet from Host
-                // char buffer[256];
-                // n = read(m->sck_monitoring, buffer, BUFFER_SIZE);
-                // if (n < 0) {
-                //     perror("Manager (Monitoring): Error receiving from socket\n");
-                // }
-
-                // p = Packet(buffer);
-                // p.src_ip = inet_ntoa(guest_addr.sin_addr);
-                // p.print();
             }
+
+            // Receiveing Packet from Host
+            char buffer[256];
+            if (read(m->sck_monitoring, buffer, BUFFER_SIZE) < 0) {
+                // If host not responding and status in table == "Awaken"
+                if (host.state == 3) {
+                    // Change status to "ASLEEP"
+                    host.state = HostState::Asleep;
+                }
+            }
+            else {
+                // If host is responding and status in table == "Discovery" or status in table == "Asleep"
+                if (host.state == HostState::Discovery || host.state == HostState::Asleep) {
+                    // Change status to "awaken"
+                    host.state = HostState::Awaken;
+                }
+                Packet response = Packet(buffer);
+                response.src_ip = inet_ntoa(guest_addr.sin_addr);
+                response.print();
+            }
+
         }
-        sleep(1);
     }
     close(m->sck_monitoring);
+    return 0;
 }

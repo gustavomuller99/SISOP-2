@@ -54,7 +54,6 @@ void *Host::monitoring(void *ctx) {
     struct sockaddr_in guest_addr;
     socklen_t addr_len = sizeof(struct sockaddr_in);
 
-
     memset(&guest_addr, 0, sizeof(guest_addr));
     guest_addr.sin_family = AF_INET;
     guest_addr.sin_port = htons(PORT_MONITORING);
@@ -74,21 +73,28 @@ void *Host::monitoring(void *ctx) {
 
     while (1) {
         char buffer[256];
-
+        
+        // Receiving Packet from Manager
         if (read(h->sck_monitoring, buffer, BUFFER_SIZE) < 0) {
-            perror("Host (Monitoring): ERROR reading from socket"); 
+            perror("Host (Monitoring): ERROR reading from socket");
+            continue;
         }
 
         Packet p = Packet(buffer);
         p.src_ip = inet_ntoa(manager_addr.sin_addr);
         p.print();
 
-        // n = write(h->sck_monitoring, "I got your message", 18);
-        // if (n < 0) {
-        //     perror("Host (Monitoring): ERROR writing to socket"); 
-        // }
-    }
+        Packet response = Packet(MessageType::SleepServiceRequest, 0, 0);
+        std::string str = response.to_payload();
+        const char* _response = str.c_str();
 
+        // Sending Packet to Manager
+        if (write(h->sck_monitoring, _response, strlen(_response)) < 0) {
+            perror("Host (Monitoring): ERROR writing to socket"); 
+            continue;
+        }
+    }
+    close(h->sck_monitoring);
     return 0;
 }
 

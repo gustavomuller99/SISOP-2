@@ -40,6 +40,7 @@ public:
 private:
     uint16_t type; // MessageType
     uint16_t seqn; 
+    uint16_t length;
     uint16_t timestamp;
     std::vector<std::string> data; // stack de dados
 };
