@@ -1,10 +1,13 @@
 #include <manager.h>
 
 void Manager::init() {
-    this->init_discovery();
-    // this->init_monitoring();
-    // this->init_management();
-    // this->init_interface();
+    pthread_create(&this->t_discovery, NULL, Manager::discovery, this);
+    pthread_create(&this->t_monitoring, NULL, Manager::monitoring, this);
+    pthread_create(&this->t_monitoring, NULL, Manager::interface, this);
+
+    pthread_join(this->t_discovery, NULL);
+    pthread_join(this->t_monitoring, NULL);
+    pthread_join(this->t_interface, NULL);
 }
 
 void Manager::add_host(KnownHost host) {
@@ -19,15 +22,17 @@ bool Manager::has_host(std::string name) {
     return false;
 }
 
-void Manager::init_discovery() {
+void *Manager::discovery(void *ctx) {
+    Manager *m = ((Manager *) ctx);
+
     // creating udp server socket file descriptor
     int trueflag = 1;
     struct sockaddr_in recv_addr;
 
-    if ((this->sck_discovery = socket(AF_INET, SOCK_DGRAM, 0)) < 0) 
+    if ((m->sck_discovery = socket(AF_INET, SOCK_DGRAM, 0)) < 0) 
         exit(EXIT_FAILURE); 
     
-    if (setsockopt(this->sck_discovery, SOL_SOCKET, SO_REUSEADDR, &trueflag, sizeof trueflag) < 0)
+    if (setsockopt(m->sck_discovery, SOL_SOCKET, SO_REUSEADDR, &trueflag, sizeof trueflag) < 0)
         exit(EXIT_FAILURE); 
 
     memset(&recv_addr, 0, sizeof recv_addr);
@@ -36,27 +41,17 @@ void Manager::init_discovery() {
     recv_addr.sin_port = (in_port_t) htons(PORT_DISCOVERY);
     recv_addr.sin_addr.s_addr = INADDR_ANY;
 
-    if (bind(this->sck_discovery, (struct sockaddr*) &recv_addr, sizeof recv_addr) < 0)
+    if (bind(m->sck_discovery, (struct sockaddr*) &recv_addr, sizeof recv_addr) < 0)
         exit(EXIT_FAILURE); 
-
-    pthread_create(&this->t_discovery, NULL, Manager::discovery, this);
-    pthread_join(this->t_discovery, NULL);
-
-    // close socket
-    close(this->sck_discovery);
-}
-
-void *Manager::discovery(void *ctx) {
-    Manager *m = ((Manager *) ctx);
 
     while(1) {
         Packet p = rec_packet(m->sck_discovery);
-        p.print();
+        // p.print();
 
-        /* consumes the package */
+        // consumes the package 
         std::string hostname = p.pop();
 
-        /* discovered new host -> should call management subservice */
+        // discovered new host -> should call management subservice 
         m->add_host({
             p.src_ip,
             hostname,
@@ -64,6 +59,51 @@ void *Manager::discovery(void *ctx) {
         });
     }
 
+    // close socket
+    close(m->sck_discovery);
+}
+
+void *Manager::monitoring(void *ctx) {
+    Manager *m = ((Manager *) ctx);
+
+    int trueflag = 1;
+
+    if ((m->sck_monitoring = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+        printf("Manager (Monitoring): ERROR opening socket");
+        exit(EXIT_FAILURE); 
+    }
+
+    if (setsockopt(m->sck_monitoring, SOL_SOCKET, SO_REUSEADDR, &trueflag, sizeof trueflag) < 0) {
+        printf("Manager (Monitoring): ERROR setting socket options");
+        exit(EXIT_FAILURE);
+    }
+
+    while (1) {
+        
+        for (auto& host : m->hosts) {
+
+            Packet request = Packet(MessageType::SleepServiceMonitoring, 0, 0);
+            send_broadcast_tcp(request, m->sck_monitoring, PORT_MONITORING, host.ip, true);
+
+            Packet response = rec_packet_tcp(m->sck_monitoring);
+
+            if (response.get_type() == MessageType::HostAsleep && host.state == HostState::Awaken) {
+                host.state = HostState::Awaken;
+                // Call Interface Subservice (change in hosts list)
+            }
+
+            else if(response.get_type() == MessageType::HostAwaken && host.state == HostState::Asleep) {
+                host.state = HostState::Awaken;
+                // Call Interface Subservice (change in hosts list)
+            }
+
+            // response.print();
+        }
+    }
+    close(m->sck_monitoring);
     return 0;
 }
 
+void *Manager::interface(void *ctx) {
+    return 0;
+}
