@@ -53,10 +53,10 @@ private:
 
 /* send packet on broadcast using port and socket  */
 void send_broadcast(Packet p, int sockfd, int port);
-// void send_broadcast_tcp(Packet p, int sockfd);
+void send_broadcast_tcp(Packet p, int sockfd, int port, std::string ip = "", bool is_manager = false);
 
 /* waits for packcage and parses into object */
 Packet rec_packet(int sockfd);
-// Packet rec_packet_tcp(int sockfd);
+Packet rec_packet_tcp(int sockfd);
 
 #endif //_MESSAGE_H

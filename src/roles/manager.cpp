@@ -81,51 +81,23 @@ void *Manager::monitoring(void *ctx) {
     while (1) {
         
         for (auto& host : m->hosts) {
-            struct sockaddr_in guest_addr;
-
-            memset(&guest_addr, 0, sizeof(guest_addr));
-            guest_addr.sin_family = AF_INET;
-            guest_addr.sin_port = htons(PORT_MONITORING);
-            inet_aton(host.ip.c_str(), &guest_addr.sin_addr);
-
-            connect(m->sck_monitoring, (struct sockaddr *)&guest_addr, sizeof(guest_addr));
 
             Packet request = Packet(MessageType::SleepServiceMonitoring, 0, 0);
-            std::string str = request.to_payload();
-            const char* _request = str.c_str();
+            send_broadcast_tcp(request, m->sck_monitoring, PORT_MONITORING, host.ip, true);
 
-            // Sending Packet to Host
-            // Problem Here!
-            if (write(m->sck_monitoring, _request, strlen(_request)) < 0) {
-                perror("Manager (Monitoring): Error writing to socket");
-                close(m->sck_monitoring);
+            Packet response = rec_packet_tcp(m->sck_monitoring);
+
+            if (response.get_type() == MessageType::HostAsleep && host.state == HostState::Awaken) {
+                host.state = HostState::Awaken;
+                // Call Interface Subservice (change in hosts list)
             }
 
-            // Receiveing Packet from Host
-            char buffer[256];
-            if (read(m->sck_monitoring, buffer, BUFFER_SIZE) < 0) {
-                // If host not responding and status in table == "Awaken"
-                if (host.state == HostState::Awaken) {
-                    // Change status to "ASLEEP"
-                    host.state = HostState::Asleep;
-                }
+            else if(response.get_type() == MessageType::HostAwaken && host.state == HostState::Asleep) {
+                host.state = HostState::Awaken;
+                // Call Interface Subservice (change in hosts list)
             }
-            else {
-                // If host is responding and status in table == "Asleep"
-                if (host.state == HostState::Asleep) {
-                    // Change status to "awaken"
-                    host.state = HostState::Awaken;
-                }
-                Packet response = Packet(buffer);
 
-                // If host is responding but wants to quit, change status
-                if (response.get_type() == MessageType::HostAsleep) {
-                    host.state = HostState::Asleep;
-                }
-
-                response.src_ip = inet_ntoa(guest_addr.sin_addr);
-                response.print();
-            }
+            // response.print();
         }
     }
     close(m->sck_monitoring);

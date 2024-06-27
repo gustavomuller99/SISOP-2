@@ -74,36 +74,20 @@ void *Host::monitoring(void *ctx) {
     }
 
     while (1) {
-        char buffer[256];
-        const char* _response = nullptr;
         
-        // Receiving Packet from Manager
-        if (read(h->sck_monitoring, buffer, BUFFER_SIZE) < 0) {
-            perror("Host (Monitoring): ERROR reading from socket");
-            continue;
-        }
+        Packet request = rec_packet_tcp(h->sck_monitoring);
+        // request.print();
 
-        Packet p = Packet(buffer);
-        p.src_ip = inet_ntoa(manager_addr.sin_addr);
-        // p.print();
-
-        // Sending Packet to Manager
         // If Host is out of service (Because "EXIT" was typed in terminal)
         if(h->host_out) {
             Packet response = Packet(MessageType::HostAsleep, 0, 0);
-            std::string str = response.to_payload();
-            _response = str.c_str();
+            send_broadcast_tcp(response, h->sck_monitoring, PORT_MONITORING);
         }
+
         // Host online
         else {
             Packet response = Packet(MessageType::HostAwaken, 0, 0);
-            std::string str = response.to_payload();
-            _response = str.c_str();
-        }
-
-        if (write(h->sck_monitoring, _response, strlen(_response)) < 0) {
-            perror("Host (Monitoring): ERROR writing to socket"); 
-            continue;
+            send_broadcast_tcp(response, h->sck_monitoring, PORT_MONITORING);
         }
     }
     close(h->sck_monitoring);

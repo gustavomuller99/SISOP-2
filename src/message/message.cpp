@@ -68,7 +68,6 @@ void send_broadcast(Packet p, int sockfd, int port) {
     struct sockaddr_in serv_addr;
     memset(&serv_addr, 0, sizeof(serv_addr));
 
-    // Filling server information
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_port = (in_port_t) htons(port);
     serv_addr.sin_addr.s_addr = INADDR_BROADCAST;
@@ -82,6 +81,31 @@ void send_broadcast(Packet p, int sockfd, int port) {
         MSG_CONFIRM, 
         (const struct sockaddr *) &serv_addr,
         sizeof(serv_addr));
+
+    return;
+}
+
+void send_broadcast_tcp(Packet p, int sockfd, int port, std::string ip, bool is_manager) {
+    struct sockaddr_in guest_addr;
+    memset(&guest_addr, 0, sizeof(guest_addr));
+
+    if(is_manager) {
+        guest_addr.sin_family = AF_INET;
+        guest_addr.sin_port = htons(port);
+        inet_aton(ip.c_str(), &guest_addr.sin_addr);
+
+        connect(sockfd, 
+            (struct sockaddr *)&guest_addr, 
+            sizeof(guest_addr));
+    }
+
+    std::string str = p.to_payload();
+    const char* message = str.c_str();
+
+    if (write(sockfd, message, strlen(message)) < 0) {
+        perror("Monitoring: Error writing to socket");
+        close(sockfd);
+    }
 
     return;
 }
@@ -101,29 +125,13 @@ Packet rec_packet(int sockfd) {
     return p;
 }
 
-// void send_broadcast_tcp(Packet p, int sockfd) {
-    // std::string str = p.to_payload();
-    // const char* _payload = str.c_str();
+Packet rec_packet_tcp(int sockfd) {
+    char buffer[256];
 
-    // write(sockfd,
-    // _payload, 
-    // strlen(_payload));
-
-    // return;
-// }
-
-// Packet rec_packet_tcp(int sockfd) {
-    // char rbuf[BUFFER_SIZE] = {};
+    if (read(sockfd, buffer, BUFFER_SIZE) < 0) 
+        return Packet(MessageType::HostAsleep, 0, 0);
     
-    // sockaddr_in rec_addr;
-    //socklen_t len = sizeof(rec_addr);
-    
-    // if (read(sockfd, rbuf, sizeof(rbuf) - 1) < 0) 
-    //    exit(EXIT_FAILURE); 
-
-    // Packet p = Packet(rbuf);
-    // p.src_ip = inet_ntoa(rec_addr.sin_addr);
-
-    // return p;
-// }
+    else
+        return Packet(buffer);
+}
 
