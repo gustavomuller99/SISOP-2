@@ -19,6 +19,7 @@ public:
 private:
     static void* discovery(void *ctx);
     static void* monitoring(void *ctx);
+    static void* interface(void *ctx);
 
     int state = HostState::Discovery;
     
@@ -27,6 +28,10 @@ private:
 
     pthread_t t_discovery{};
     pthread_t t_monitoring{};
+    pthread_t t_interface{};
+
+    pthread_mutex_t mutex_host_out = PTHREAD_MUTEX_INITIALIZER;
+    bool host_out = false;
 
     const int sleep_discovery = 500 * 1000; /* 500 ms */
 };

@@ -3,9 +3,11 @@
 void Host::init() {
     pthread_create(&this->t_discovery, NULL, Host::discovery, this);
     pthread_create(&this->t_monitoring, NULL, Host::monitoring, this);
+    pthread_create(&this->t_interface, NULL, Host::interface, this);
 
     pthread_join(this->t_discovery, NULL);
     pthread_join(this->t_monitoring, NULL);
+    pthread_join(this->t_interface, NULL);
 }
 
 void *Host::discovery(void *ctx) {
@@ -73,6 +75,7 @@ void *Host::monitoring(void *ctx) {
 
     while (1) {
         char buffer[256];
+        const char* _response = nullptr;
         
         // Receiving Packet from Manager
         if (read(h->sck_monitoring, buffer, BUFFER_SIZE) < 0) {
@@ -82,19 +85,43 @@ void *Host::monitoring(void *ctx) {
 
         Packet p = Packet(buffer);
         p.src_ip = inet_ntoa(manager_addr.sin_addr);
-        p.print();
-
-        Packet response = Packet(MessageType::SleepServiceRequest, 0, 0);
-        std::string str = response.to_payload();
-        const char* _response = str.c_str();
+        // p.print();
 
         // Sending Packet to Manager
+        // If Host is out of service (Because "EXIT" was typed in terminal)
+        if(h->host_out) {
+            Packet response = Packet(MessageType::HostAsleep, 0, 0);
+            std::string str = response.to_payload();
+            _response = str.c_str();
+        }
+        // Host online
+        else {
+            Packet response = Packet(MessageType::HostAwaken, 0, 0);
+            std::string str = response.to_payload();
+            _response = str.c_str();
+        }
+
         if (write(h->sck_monitoring, _response, strlen(_response)) < 0) {
             perror("Host (Monitoring): ERROR writing to socket"); 
             continue;
         }
     }
     close(h->sck_monitoring);
+    return 0;
+}
+
+void *Host::interface(void *ctx) {
+    Host *h = ((Host *) ctx);
+
+    std::string input;
+    std::cout << "To quit the service type EXIT." << std::endl;
+    std::cin >> input;
+    if (input == "EXIT")
+    {
+        pthread_mutex_lock(&h->mutex_host_out);
+        h->host_out = true;
+        pthread_mutex_unlock(&h->mutex_host_out);
+    }
     return 0;
 }
 

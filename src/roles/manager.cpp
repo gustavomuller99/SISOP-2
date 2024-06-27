@@ -3,13 +3,11 @@
 void Manager::init() {
     pthread_create(&this->t_discovery, NULL, Manager::discovery, this);
     pthread_create(&this->t_monitoring, NULL, Manager::monitoring, this);
-    // pthread_create(&this->t_monitoring, NULL, Manager::management, this);
-    // pthread_create(&this->t_monitoring, NULL, Manager::interface, this);
+    pthread_create(&this->t_monitoring, NULL, Manager::interface, this);
 
     pthread_join(this->t_discovery, NULL);
     pthread_join(this->t_monitoring, NULL);
-    // pthread_join(this->management, NULL);
-    // pthread_join(this->interface, NULL);
+    pthread_join(this->t_interface, NULL);
 }
 
 void Manager::add_host(KnownHost host) {
@@ -83,8 +81,6 @@ void *Manager::monitoring(void *ctx) {
     while (1) {
         
         for (auto& host : m->hosts) {
-            std::cout << "IP: " << host.ip << ", State: " << host.state << std::endl;
-
             struct sockaddr_in guest_addr;
 
             memset(&guest_addr, 0, sizeof(guest_addr));
@@ -94,38 +90,48 @@ void *Manager::monitoring(void *ctx) {
 
             connect(m->sck_monitoring, (struct sockaddr *)&guest_addr, sizeof(guest_addr));
 
-            Packet request = Packet(MessageType::SleepServiceRequest, 0, 0);
+            Packet request = Packet(MessageType::SleepServiceMonitoring, 0, 0);
             std::string str = request.to_payload();
             const char* _request = str.c_str();
 
             // Sending Packet to Host
+            // Problem Here!
             if (write(m->sck_monitoring, _request, strlen(_request)) < 0) {
                 perror("Manager (Monitoring): Error writing to socket");
-                continue;
+                close(m->sck_monitoring);
             }
 
             // Receiveing Packet from Host
             char buffer[256];
             if (read(m->sck_monitoring, buffer, BUFFER_SIZE) < 0) {
                 // If host not responding and status in table == "Awaken"
-                if (host.state == 3) {
+                if (host.state == HostState::Awaken) {
                     // Change status to "ASLEEP"
                     host.state = HostState::Asleep;
                 }
             }
             else {
-                // If host is responding and status in table == "Discovery" or status in table == "Asleep"
-                if (host.state == HostState::Discovery || host.state == HostState::Asleep) {
+                // If host is responding and status in table == "Asleep"
+                if (host.state == HostState::Asleep) {
                     // Change status to "awaken"
                     host.state = HostState::Awaken;
                 }
                 Packet response = Packet(buffer);
+
+                // If host is responding but wants to quit, change status
+                if (response.get_type() == MessageType::HostAsleep) {
+                    host.state = HostState::Asleep;
+                }
+
                 response.src_ip = inet_ntoa(guest_addr.sin_addr);
                 response.print();
             }
-
         }
     }
     close(m->sck_monitoring);
+    return 0;
+}
+
+void *Manager::interface(void *ctx) {
     return 0;
 }

@@ -17,7 +17,9 @@ const int BUFFER_SIZE = 256;
 
 enum MessageType {
     SleepServiceDiscovery = 0,
-    SleepServiceRequest = 1
+    SleepServiceMonitoring = 1,
+    HostAwaken = 2,
+    HostAsleep = 3
 };
 
 // Descrição dos protocolos:
@@ -37,6 +39,10 @@ public:
     std::string to_payload();
 
     std::string src_ip;
+
+    MessageType get_type() const {
+        return static_cast<MessageType>(type);
+    }
 private:
     uint16_t type; // MessageType
     uint16_t seqn; 

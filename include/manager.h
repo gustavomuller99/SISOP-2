@@ -22,6 +22,7 @@ public:
 private:
     static void* discovery(void *ctx);
     static void* monitoring(void *ctx);
+    static void* interface(void *ctx);
 
     std::vector<KnownHost> hosts; // list of known hosts
 
@@ -30,6 +31,7 @@ private:
 
     pthread_t t_discovery{};
     pthread_t t_monitoring{};
+    pthread_t t_interface{};
 };
 
 #endif //_MANAGER_H
