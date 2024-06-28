@@ -10,9 +10,24 @@ void Manager::init() {
     pthread_join(this->t_interface, NULL);
 }
 
+std::string Manager::state_string(KnownHost host) {
+    switch (host.state) {
+        case HostState::Discovery:
+            return "Discovery";
+        case HostState::Asleep:
+            return "Asleep";
+        case HostState::Awaken:
+            return "Awaken";
+        default:
+            return "Unknown";
+    }
+}
+
 void Manager::add_host(KnownHost host) {
-    if (!this->has_host(host.name))
+    if (!this->has_host(host.name)) {
         this->hosts.push_back(host);
+        this->print_hosts();
+    }
 }
 
 bool Manager::has_host(std::string name) {
@@ -20,6 +35,22 @@ bool Manager::has_host(std::string name) {
         if (h.name == name) return true;
     }
     return false;
+}
+
+void Manager::print_hosts() {
+    std::cout << std::left << std::setw(20) << "Hostname"
+              << std::setw(15) << "IP"
+              << "Status" << std::endl;
+
+    std::cout << std::setw(20) << std::setfill('-') << ""
+              << std::setw(15) << ""
+              << std::setfill(' ') << "-------" << std::endl;
+
+    for (const KnownHost &h : this->hosts) {
+        std::cout << std::left << std::setw(20) << h.name
+                  << std::setw(15) << h.ip
+                  << this->state_string(h) << std::endl;
+    }
 }
 
 void *Manager::discovery(void *ctx) {
@@ -80,7 +111,7 @@ void *Manager::monitoring(void *ctx) {
 
     while (1) {
         
-        for (auto& host : m->hosts) {
+        for (KnownHost &host : m->hosts) {
 
             Packet request = Packet(MessageType::SleepServiceMonitoring, 0, 0);
             send_broadcast_tcp(request, m->sck_monitoring, PORT_MONITORING, host.ip, true);
@@ -89,12 +120,12 @@ void *Manager::monitoring(void *ctx) {
 
             if (response.get_type() == MessageType::HostAsleep && host.state == HostState::Awaken) {
                 host.state = HostState::Awaken;
-                // Call Interface Subservice (change in hosts list)
+                m->print_hosts();
             }
 
             else if(response.get_type() == MessageType::HostAwaken && host.state == HostState::Asleep) {
                 host.state = HostState::Awaken;
-                // Call Interface Subservice (change in hosts list)
+                m->print_hosts();
             }
 
             // response.print();

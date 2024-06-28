@@ -98,13 +98,15 @@ void *Host::interface(void *ctx) {
     Host *h = ((Host *) ctx);
 
     std::string input;
-    std::cout << "Type EXIT to quit the service" << std::endl;
+    std::cout << "Type 'EXIT' to quit the service" << std::endl;
     std::cin >> input;
+
     if (input == "EXIT") {
         pthread_mutex_lock(&h->mutex_host_out);
         h->host_out = true;
         pthread_mutex_unlock(&h->mutex_host_out);
     }
+
     return 0;
 }
 
