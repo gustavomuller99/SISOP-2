@@ -88,7 +88,7 @@ void *Manager::discovery(void *ctx) {
         m->add_host({
             p.src_ip,
             hostname,
-            HostState::Asleep
+            HostState::Discovery
         });
     }
 
