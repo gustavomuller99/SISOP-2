@@ -3,7 +3,7 @@
 void Manager::init() {
     pthread_create(&this->t_discovery, NULL, Manager::discovery, this);
     pthread_create(&this->t_monitoring, NULL, Manager::monitoring, this);
-    pthread_create(&this->t_monitoring, NULL, Manager::interface, this);
+    pthread_create(&this->t_interface, NULL, Manager::interface, this);
 
     pthread_join(this->t_discovery, NULL);
     pthread_join(this->t_monitoring, NULL);
@@ -38,6 +38,8 @@ bool Manager::has_host(std::string name) {
 }
 
 void Manager::print_hosts() {
+    std::cout << "\n" << std::endl;
+
     std::cout << std::left << std::setw(20) << "Hostname"
               << std::setw(15) << "IP"
               << "Status" << std::endl;
@@ -49,7 +51,7 @@ void Manager::print_hosts() {
     for (const KnownHost &h : this->hosts) {
         std::cout << std::left << std::setw(20) << h.name
                   << std::setw(15) << h.ip
-                  << this->state_string(h) << std::endl;
+                  << this->state_string(h) << "\n" << std::endl;
     }
 }
 
@@ -86,7 +88,7 @@ void *Manager::discovery(void *ctx) {
         m->add_host({
             p.src_ip,
             hostname,
-            HostState::Discovery
+            HostState::Asleep
         });
     }
 
@@ -119,7 +121,7 @@ void *Manager::monitoring(void *ctx) {
             Packet response = rec_packet_tcp(m->sck_monitoring);
 
             if (response.get_type() == MessageType::HostAsleep && host.state == HostState::Awaken) {
-                host.state = HostState::Awaken;
+                host.state = HostState::Asleep;
                 m->print_hosts();
             }
 
@@ -128,7 +130,12 @@ void *Manager::monitoring(void *ctx) {
                 m->print_hosts();
             }
 
-            // response.print();
+            // TO-DO: Create MessageType::Timeout
+            // else if(response.get_type() == MessageType::Timeout && host.state == HostState::Awaken) {
+            //     host.state = HostState::Asleep;
+            //     m->print_hosts();
+            // }
+
         }
     }
     close(m->sck_monitoring);
