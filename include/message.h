@@ -12,6 +12,7 @@
 /* 30000 - 34999 */
 const int PORT_DISCOVERY = 30000;
 const int PORT_MONITORING = 31000;
+const int PORT_MANAGEMENT = 32000;
 
 const int BUFFER_SIZE = 256;
 
