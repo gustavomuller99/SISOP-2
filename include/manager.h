@@ -8,6 +8,7 @@
 
 struct KnownHost {
     std::string ip;
+    std::string mac;
     std::string name;
     HostState state;
 };

@@ -39,6 +39,7 @@ public:
     std::string to_payload();
 
     std::string src_ip;
+    std::string src_mac;
 
     MessageType get_type() const {
         return static_cast<MessageType>(type);
@@ -50,6 +51,10 @@ private:
     uint16_t timestamp;
     std::vector<std::string> data; // stack de dados
 };
+
+/* functions to get mac address of current user */
+std::string format_mac_address(const unsigned char* mac);
+std::string get_mac_address();
 
 /* send packet on broadcast using port and socket  */
 void send_broadcast(Packet p, int sockfd, int port);

@@ -1,4 +1,23 @@
 #include <message.h>
+#include <iostream>
+#include <cstring>
+#include <pthread.h>
+#include <string>
+#include <list>
+#include <map>
+#include <iomanip>
+#include <mutex>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/ioctl.h>
+#include <netinet/in.h>
+#include <net/if.h>
+#include <csignal>
+#include <netdb.h>
+#include <arpa/inet.h>
+#include <vector>
+#include <cstdlib>
+#include <ifaddrs.h>
 
 Packet::Packet(int type, int seqn, int timestamp) {
     this->type = type;
@@ -41,6 +60,7 @@ void Packet::print() {
     std::cout << "Seqn: " << this->seqn << "\n";
     std::cout << "Timestamp: " << this->timestamp << "\n";
     std::cout << "IP: " << this->src_ip << "\n";
+    std::cout << "MAC: " << this->src_mac << "\n";
     std::cout << "Data: ";
     for (std::string i : this->data) {
         std::cout << i << " ";
@@ -110,6 +130,54 @@ void send_broadcast_tcp(Packet p, int sockfd, int port, std::string ip, bool is_
     return;
 }
 
+std::string format_mac_address(const unsigned char* mac) {
+    char mac_buffer[18];
+    snprintf(mac_buffer, sizeof(mac_buffer), "%02X:%02X:%02X:%02X:%02X:%02X",
+             mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+    return mac_buffer;
+}
+
+std::string get_mac_address() {
+    int sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
+
+    if (sock < 0) {
+        printf("ERROR getting MAC Address\n");
+        exit(EXIT_FAILURE); 
+    }
+
+    struct ifreq ifr;
+    struct ifconf ifc;
+    char buf[1024];
+
+    ifc.ifc_len = sizeof(buf);
+    ifc.ifc_buf = buf;
+
+    if (ioctl(sock, SIOCGIFCONF, &ifc) == -1) {
+        printf("ERROR getting MAC Address\n");
+        close(sock);
+        exit(EXIT_FAILURE); 
+    }
+
+    struct ifreq *it = ifc.ifc_req;
+    const struct ifreq *const end = it + (ifc.ifc_len / sizeof(struct ifreq));
+
+    for (; it != end; ++it) {
+        strncpy(ifr.ifr_name, it->ifr_name, IFNAMSIZ - 1);
+
+        if (ioctl(sock, SIOCGIFFLAGS, &ifr) == 0
+            && !(ifr.ifr_flags & IFF_LOOPBACK)
+            && ioctl(sock, SIOCGIFHWADDR, &ifr) == 0) {
+                unsigned char* mac = reinterpret_cast<unsigned char*>(ifr.ifr_hwaddr.sa_data);
+                return format_mac_address(mac);
+        }
+    }
+
+    close(sock);
+
+    printf("ERROR getting MAC Address\n");
+    exit(EXIT_FAILURE); 
+}
+
 Packet rec_packet(int sockfd) {
     char rbuf[BUFFER_SIZE] = {};
     
@@ -121,6 +189,7 @@ Packet rec_packet(int sockfd) {
 
     Packet p = Packet(rbuf);
     p.src_ip = inet_ntoa(rec_addr.sin_addr);
+    p.src_mac = get_mac_address();
 
     return p;
 }

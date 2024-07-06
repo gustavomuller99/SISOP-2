@@ -41,16 +41,19 @@ void Manager::print_hosts() {
     std::cout << "\n" << std::endl;
 
     std::cout << std::left << std::setw(20) << "Hostname"
-              << std::setw(15) << "IP"
+              << std::setw(16) << "Endereço IP"
+              << std::setw(21) << "Endereço MAC"
               << "Status" << std::endl;
 
     std::cout << std::setw(20) << std::setfill('-') << ""
               << std::setw(15) << ""
+              << std::setw(20) << ""
               << std::setfill(' ') << "-------" << std::endl;
 
     for (const KnownHost &h : this->hosts) {
         std::cout << std::left << std::setw(20) << h.name
                   << std::setw(15) << h.ip
+                  << std::setw(20) << h.mac
                   << this->state_string(h) << "\n" << std::endl;
     }
 }
@@ -87,6 +90,7 @@ void *Manager::discovery(void *ctx) {
         // discovered new host -> should call management subservice 
         m->add_host({
             p.src_ip,
+            p.src_mac,
             hostname,
             HostState::Discovery
         });
