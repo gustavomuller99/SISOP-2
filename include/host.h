@@ -30,10 +30,11 @@ private:
     pthread_t t_monitoring{};
     pthread_t t_interface{};
 
-    pthread_mutex_t mutex_host_out = PTHREAD_MUTEX_INITIALIZER;
-    bool host_out = false;
+    pthread_mutex_t mutex_exit_host = PTHREAD_MUTEX_INITIALIZER;
+    bool exit_host = false;
 
     const int sleep_discovery = 500 * 1000; /* 500 ms */
+    const int sleep_monitoring = 500 * 1000;
 };
 
 #endif //_HOST_H

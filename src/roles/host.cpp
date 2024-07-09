@@ -74,21 +74,25 @@ void *Host::monitoring(void *ctx) {
     }
 
     while (1) {
-        
         Packet request = rec_packet_tcp(h->sck_monitoring);
-        // request.print();
 
-        // If Host is out of service (Because "EXIT" was typed in terminal)
-        if(h->host_out) {
-            Packet response = Packet(MessageType::HostAsleep, 0, 0);
-            send_broadcast_tcp(response, h->sck_monitoring, PORT_MONITORING);
+        // if first discovered, switch state
+        if (h->state == HostState::Discovery) {
+            h->state = HostState::Asleep;
         }
 
-        // Host online
-        else {
-            Packet response = Packet(MessageType::HostAwaken, 0, 0);
-            send_broadcast_tcp(response, h->sck_monitoring, PORT_MONITORING);
+        // answers only the host current state OR exits
+        if (h->exit_host) {
+            Packet response = Packet(MessageType::SleepServiceExit, 0, 0);
+            send_tcp(response, h->sck_monitoring, PORT_MONITORING);
+            break;
+        } else {
+            Packet response = Packet(MessageType::SleepServiceMonitoring, 0, 0);
+            response.push(std::to_string(h->state));
+            send_tcp(response, h->sck_monitoring, PORT_MONITORING);
         }
+
+        usleep(h->sleep_monitoring);
     }
     close(h->sck_monitoring);
     return 0;
@@ -102,9 +106,9 @@ void *Host::interface(void *ctx) {
     std::cin >> input;
 
     if (input == "EXIT") {
-        pthread_mutex_lock(&h->mutex_host_out);
-        h->host_out = true;
-        pthread_mutex_unlock(&h->mutex_host_out);
+        pthread_mutex_lock(&h->mutex_exit_host);
+        h->exit_host = true;
+        pthread_mutex_unlock(&h->mutex_exit_host);
     }
 
     return 0;

@@ -35,6 +35,10 @@ private:
     pthread_t t_discovery{};
     pthread_t t_monitoring{};
     pthread_t t_interface{};
+
+    const int sleep_monitoring = 500 * 1000;
 };
+
+HostState host_from_string(std::string state);
 
 #endif //_MANAGER_H
