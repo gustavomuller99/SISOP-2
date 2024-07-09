@@ -49,6 +49,7 @@ void Packet::push(std::string data) {
 }
 
 std::string Packet::pop() {
+    if (data.empty()) return "";
     std::string top = this->data.front();
     this->data.pop_back();
     return top;
@@ -70,7 +71,7 @@ void Packet::print() {
 
 std::string Packet::to_payload() {
     std::string _payload;
-    
+
     _payload += std::to_string(this->type) + "|";
     _payload += std::to_string(this->seqn) + "|";
     _payload += std::to_string(this->timestamp) + "|";
@@ -78,7 +79,7 @@ std::string Packet::to_payload() {
     for (std::string d : this->data) {
         _payload += d + "|";
     }
-    
+
     return _payload;
 }
 
@@ -95,27 +96,27 @@ void send_broadcast(Packet p, int sockfd, int port) {
     std::string str = p.to_payload();
     const char* _payload = str.c_str();
 
-    sendto(sockfd, 
-        _payload, 
+    sendto(sockfd,
+        _payload,
         strlen(_payload),
-        MSG_CONFIRM, 
+        MSG_CONFIRM,
         (const struct sockaddr *) &serv_addr,
         sizeof(serv_addr));
 
     return;
 }
 
-void send_broadcast_tcp(Packet p, int sockfd, int port, std::string ip, bool is_manager) {
+void send_tcp(Packet p, int sockfd, int port, std::string ip, bool begin) {
     struct sockaddr_in guest_addr;
     memset(&guest_addr, 0, sizeof(guest_addr));
 
-    if(is_manager) {
+    if(begin) {
         guest_addr.sin_family = AF_INET;
         guest_addr.sin_port = htons(port);
         inet_aton(ip.c_str(), &guest_addr.sin_addr);
 
-        connect(sockfd, 
-            (struct sockaddr *)&guest_addr, 
+        connect(sockfd,
+            (struct sockaddr *)&guest_addr,
             sizeof(guest_addr));
     }
 
@@ -180,12 +181,12 @@ std::string get_mac_address() {
 
 Packet rec_packet(int sockfd) {
     char rbuf[BUFFER_SIZE] = {};
-    
+
     sockaddr_in rec_addr;
     socklen_t len = sizeof(rec_addr);
-    
-    if (recvfrom(sockfd, rbuf, sizeof(rbuf) - 1, 0, (struct sockaddr*) &rec_addr, &len) < 0) 
-        exit(EXIT_FAILURE); 
+
+    if (recvfrom(sockfd, rbuf, sizeof(rbuf) - 1, 0, (struct sockaddr*) &rec_addr, &len) < 0)
+        exit(EXIT_FAILURE);
 
     Packet p = Packet(rbuf);
     p.src_ip = inet_ntoa(rec_addr.sin_addr);
@@ -195,12 +196,10 @@ Packet rec_packet(int sockfd) {
 }
 
 Packet rec_packet_tcp(int sockfd) {
-    char buffer[256];
+    char buffer[BUFFER_SIZE];
 
-    if (read(sockfd, buffer, BUFFER_SIZE) < 0) 
-        return Packet(MessageType::HostAsleep, 0, 0);
-    
+    if (read(sockfd, buffer, BUFFER_SIZE) < 0)
+        return Packet(MessageType::Error, 0, 0);
     else
         return Packet(buffer);
 }
-
