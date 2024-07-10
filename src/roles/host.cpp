@@ -8,7 +8,7 @@ void Host::init() {
     pthread_create(&this->t_discovery, NULL, Host::discovery, this);
     pthread_create(&this->t_monitoring, NULL, Host::monitoring, this);
     pthread_create(&this->t_interface, NULL, Host::interface, this);
-    pthread_create(&this->t_input, NULL, Host::input, this);
+    pthread_create(&this->t_interface, NULL, Host::input, this);
 
     pthread_join(this->t_discovery, NULL);
     pthread_join(this->t_interface, NULL);
@@ -20,6 +20,20 @@ void Host::init() {
     } else pthread_join(this->t_monitoring, NULL);
 
     endwin();
+}
+
+void Host::switch_state(HostState new_state) {
+    pthread_mutex_lock(&this->mutex_change_state);
+    if (this->state != HostState::Exit) {
+        this->prev_state = this->state;
+        this->state = new_state;
+    }
+    pthread_mutex_unlock(&this->mutex_change_state);
+}
+
+void Host::exit_handler(int sn, siginfo_t* t, void* ctx) {
+    puts(""); /* feeds input thread */
+    this->switch_state(HostState::Exit);
 }
 
 void *Host::discovery(void *ctx) {
@@ -120,7 +134,7 @@ void *Host::interface(void *ctx) {
     while (h->state != HostState::Exit) {
         wclear(output);
         wprintw(output, "Current host state: %s\n", string_from_state(h->state).data());
-        wprintw(output, "Press EXIT to quit", string_from_state(h->state).data());
+        wprintw(output, "Press EXIT to quit");
         wrefresh(output);
 
         usleep(h->sleep_interface);
@@ -151,15 +165,6 @@ void *Host::input(void *ctx) {
 
     destroy_win(input);
     return 0;
-}
-
-void Host::switch_state(HostState new_state) {
-    pthread_mutex_lock(&this->mutex_change_state);
-    if (this->state != HostState::Exit) {
-        this->prev_state = this->state;
-        this->state = new_state;
-    }
-    pthread_mutex_unlock(&this->mutex_change_state);
 }
 
 /* utils */

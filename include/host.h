@@ -17,6 +17,8 @@ class Host {
 public:
     Host() = default;
     void init();
+
+    void exit_handler(int sn, siginfo_t* t, void* ctx);
     
 private:
     static void* discovery(void *ctx);
