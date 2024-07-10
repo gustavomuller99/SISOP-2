@@ -17,7 +17,6 @@ class Manager {
 public:
     void init();
 
-    std::string state_string(KnownHost host);
     void add_host(KnownHost host);
     bool has_host(std::string name);
     void print_hosts();
@@ -38,7 +37,5 @@ private:
 
     const int sleep_monitoring = 500 * 1000;
 };
-
-HostState host_from_string(std::string state);
 
 #endif //_MANAGER_H

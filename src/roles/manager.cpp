@@ -10,19 +10,6 @@ void Manager::init() {
     pthread_join(this->t_interface, NULL);
 }
 
-std::string Manager::state_string(KnownHost host) {
-    switch (host.state) {
-        case HostState::Discovery:
-            return "Discovery";
-        case HostState::Asleep:
-            return "Asleep";
-        case HostState::Awaken:
-            return "Awaken";
-        default:
-            return "Unknown";
-    }
-}
-
 void Manager::add_host(KnownHost host) {
     if (!this->has_host(host.name)) {
         this->hosts.push_back(host);
@@ -53,7 +40,7 @@ void Manager::print_hosts() {
         std::cout << std::left << std::setw(20) << h.name
                   << std::setw(15) << h.ip
                   << std::setw(20) << h.mac
-                  << this->state_string(h) << "\n" << std::endl;
+                  << string_from_state(h.state) << "\n" << std::endl;
     }
 }
 
@@ -126,7 +113,7 @@ void *Manager::monitoring(void *ctx) {
                 // exits host
             } else {
                 std::string state = response.pop();
-                host.state = host_from_string(state);
+                host.state = state_from_string(state);
             }
         }
 
@@ -146,12 +133,4 @@ void *Manager::monitoring(void *ctx) {
 
 void *Manager::interface(void *ctx) {
     return 0;
-}
-
-/* utils */
-
-HostState host_from_string(std::string state) {
-    if (state == "1") return HostState::Discovery;
-    if (state == "2") return HostState::Asleep;
-    return HostState::Awaken;
 }

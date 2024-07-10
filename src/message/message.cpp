@@ -131,6 +131,31 @@ void send_tcp(Packet p, int sockfd, int port, std::string ip, bool begin) {
     return;
 }
 
+Packet rec_packet(int sockfd) {
+    char rbuf[BUFFER_SIZE] = {};
+
+    sockaddr_in rec_addr;
+    socklen_t len = sizeof(rec_addr);
+
+    if (recvfrom(sockfd, rbuf, sizeof(rbuf) - 1, 0, (struct sockaddr*) &rec_addr, &len) < 0)
+        exit(EXIT_FAILURE);
+
+    Packet p = Packet(rbuf);
+    p.src_ip = inet_ntoa(rec_addr.sin_addr);
+    p.src_mac = get_mac_address();
+
+    return p;
+}
+
+Packet rec_packet_tcp(int sockfd) {
+    char buffer[BUFFER_SIZE];
+
+    if (read(sockfd, buffer, BUFFER_SIZE) < 0)
+        return Packet(MessageType::Error, 0, 0);
+    else
+        return Packet(buffer);
+}
+
 std::string format_mac_address(const unsigned char* mac) {
     char mac_buffer[18];
     snprintf(mac_buffer, sizeof(mac_buffer), "%02X:%02X:%02X:%02X:%02X:%02X",
@@ -177,29 +202,4 @@ std::string get_mac_address() {
 
     printf("ERROR getting MAC Address\n");
     exit(EXIT_FAILURE); 
-}
-
-Packet rec_packet(int sockfd) {
-    char rbuf[BUFFER_SIZE] = {};
-
-    sockaddr_in rec_addr;
-    socklen_t len = sizeof(rec_addr);
-
-    if (recvfrom(sockfd, rbuf, sizeof(rbuf) - 1, 0, (struct sockaddr*) &rec_addr, &len) < 0)
-        exit(EXIT_FAILURE);
-
-    Packet p = Packet(rbuf);
-    p.src_ip = inet_ntoa(rec_addr.sin_addr);
-    p.src_mac = get_mac_address();
-
-    return p;
-}
-
-Packet rec_packet_tcp(int sockfd) {
-    char buffer[BUFFER_SIZE];
-
-    if (read(sockfd, buffer, BUFFER_SIZE) < 0)
-        return Packet(MessageType::Error, 0, 0);
-    else
-        return Packet(buffer);
 }
