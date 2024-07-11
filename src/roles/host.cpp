@@ -112,6 +112,7 @@ void *Host::monitoring(void *ctx) {
         if (h->state == HostState::Exit) {
             Packet response = Packet(MessageType::SleepServiceExit, 0, 0);
             send_tcp(response, h->sck_monitoring, PORT_MONITORING);
+            close(h->sck_monitoring);
             break;
         } else {
             Packet response = Packet(MessageType::SleepServiceMonitoring, 0, 0);

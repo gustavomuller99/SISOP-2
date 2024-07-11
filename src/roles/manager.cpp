@@ -13,9 +13,14 @@ void Manager::init() {
 }
 
 void Manager::add_host(KnownHost host) {
+    pthread_mutex_lock(&hosts_mutex);
+
     if (!this->has_host(host.name)) {
         this->hosts.push_back(host);
+                hosts_changed = true; // modificação na lista de hosts
     }
+
+    pthread_mutex_unlock(&hosts_mutex);
 }
 
 bool Manager::has_host(std::string name) {
@@ -26,6 +31,12 @@ bool Manager::has_host(std::string name) {
 }
 
 void Manager::print_hosts() {
+    pthread_mutex_lock(&hosts_mutex);
+    if (!hosts_changed) {
+        pthread_mutex_unlock(&hosts_mutex);
+        return; // sem mudanças, não precisa printar
+    }
+
     std::cout << "\n" << std::endl;
 
     std::cout << std::left << std::setw(20) << "Hostname"
@@ -44,6 +55,9 @@ void Manager::print_hosts() {
                   << std::setw(20) << h.mac
                   << string_from_state(h.state) << "\n" << std::endl;
     }
+
+    hosts_changed = false; // Reset the flag
+    pthread_mutex_unlock(&hosts_mutex);
 }
 
 void *Manager::discovery(void *ctx) {
@@ -103,19 +117,47 @@ void *Manager::monitoring(void *ctx) {
     }
 
     while (1) {
-        for (KnownHost &host : m->hosts) {
+        for (auto it = m->hosts.begin(); it != m->hosts.end(); ) {
+            KnownHost &host = *it;
+
+            if (!host.connected) {
+                int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+                if (sockfd < 0) {
+                    perror("Manager (Monitoring): Error creating socket");
+                    continue;
+                }
+
+                struct sockaddr_in guest_addr;
+                memset(&guest_addr, 0, sizeof(guest_addr));
+                guest_addr.sin_family = AF_INET;
+                guest_addr.sin_port = htons(PORT_MONITORING);
+                inet_aton(host.ip.c_str(), &guest_addr.sin_addr);
+
+                if (connect(sockfd, (struct sockaddr *) &guest_addr, sizeof(guest_addr)) < 0) {
+                    perror("Manager (Monitoring): Error connecting to host");
+                    close(sockfd);
+                    continue;
+                }
+
+                // Update host state to connected
+                host.connected = true;
+                host.sockfd = sockfd;
+            }
 
             Packet request = Packet(MessageType::SleepServiceMonitoring, 0, 0);
-            send_tcp(request, m->sck_monitoring, PORT_MONITORING, host.ip, true);
+            send_tcp(request, host.sockfd, PORT_MONITORING, host.ip, true);
 
-            Packet response = rec_packet_tcp(m->sck_monitoring);
+            Packet response = rec_packet_tcp(host.sockfd);
 
-            // update or exists host
             if (response.get_type() == MessageType::SleepServiceExit) {
-                // exits host
+                // Handle host exit
+                printf("Host %s exited.\n", host.name.c_str());
+                close(host.sockfd); // Close socket for the exiting host
+                it = m->hosts.erase(it); // Remove host from list
             } else {
                 std::string state = response.pop();
                 host.state = state_from_string(state);
+                ++it;
             }
         }
 
@@ -189,3 +231,33 @@ void* Manager::management(void *ctx) {
 void *Manager::interface(void *ctx) {
     return 0;
 }
+
+/* void *Manager::input_handler(void *ctx) {
+    Manager *m = (Manager *)ctx;
+
+    while (true) {
+        std::string command;
+        std::cout << "\nEnter command: ";
+        std::getline(std::cin, command);
+
+        if (!command.empty()) {
+            if (command.substr(0, 6) == "wakeup") {
+                std::string hostname = command.substr(7);
+
+                pthread_mutex_lock(&m->hosts_mutex);
+                for (KnownHost &host : m->hosts) {
+                    if (host.name == hostname && host.state == HostState::Asleep) {
+                        // Simulate waking up host
+                        std::cout << "Waking up " << hostname << std::endl;
+                        host.state = HostState::Awaken; // Update host state
+                    }
+                }
+                pthread_mutex_unlock(&m->hosts_mutex);
+            } else {
+                std::cout << "Unknown command: " << command << std::endl;
+            }
+        }
+    }
+
+    return nullptr;
+} */

@@ -11,6 +11,8 @@ struct KnownHost {
     std::string mac;
     std::string name;
     HostState state;
+    bool connected; // New member to track connection state
+    int sockfd;     // New member to store socket descriptor
 };
 
 class Manager {
@@ -37,6 +39,9 @@ private:
     pthread_t t_monitoring{};
     pthread_t t_management{};
     pthread_t t_interface{};
+
+    bool hosts_changed = false; // Flag to track changes in hosts
+    pthread_mutex_t hosts_mutex = PTHREAD_MUTEX_INITIALIZER;
 
     const int sleep_monitoring = 500 * 1000;
 };
