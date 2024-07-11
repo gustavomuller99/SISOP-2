@@ -117,19 +117,47 @@ void *Manager::monitoring(void *ctx) {
     }
 
     while (1) {
-        for (KnownHost &host : m->hosts) {
+        for (auto it = m->hosts.begin(); it != m->hosts.end(); ) {
+            KnownHost &host = *it;
+
+            if (!host.connected) {
+                int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+                if (sockfd < 0) {
+                    perror("Manager (Monitoring): Error creating socket");
+                    continue;
+                }
+
+                struct sockaddr_in guest_addr;
+                memset(&guest_addr, 0, sizeof(guest_addr));
+                guest_addr.sin_family = AF_INET;
+                guest_addr.sin_port = htons(PORT_MONITORING);
+                inet_aton(host.ip.c_str(), &guest_addr.sin_addr);
+
+                if (connect(sockfd, (struct sockaddr *) &guest_addr, sizeof(guest_addr)) < 0) {
+                    perror("Manager (Monitoring): Error connecting to host");
+                    close(sockfd);
+                    continue;
+                }
+
+                // Update host state to connected
+                host.connected = true;
+                host.sockfd = sockfd;
+            }
 
             Packet request = Packet(MessageType::SleepServiceMonitoring, 0, 0);
-            send_tcp(request, m->sck_monitoring, PORT_MONITORING, host.ip, true);
+            send_tcp(request, host.sockfd, PORT_MONITORING, host.ip, true);
 
-            Packet response = rec_packet_tcp(m->sck_monitoring);
+            Packet response = rec_packet_tcp(host.sockfd);
 
-            // update or exists host
             if (response.get_type() == MessageType::SleepServiceExit) {
-                // exits host
+                // Handle host exit
+                printf("Host %s exited.\n", host.name.c_str());
+                close(host.sockfd); // Close socket for the exiting host
+                it = m->hosts.erase(it); // Remove host from list
             } else {
                 std::string state = response.pop();
                 host.state = state_from_string(state);
+                ++it;
             }
         }
 

@@ -11,6 +11,8 @@ struct KnownHost {
     std::string mac;
     std::string name;
     HostState state;
+    bool connected; // New member to track connection state
+    int sockfd;     // New member to store socket descriptor
 };
 
 class Manager {
