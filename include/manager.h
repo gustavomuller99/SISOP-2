@@ -8,6 +8,7 @@
 
 struct KnownHost {
     std::string ip;
+    std::string mac;
     std::string name;
     HostState state;
 };
@@ -18,6 +19,7 @@ public:
 
     void add_host(KnownHost host);
     bool has_host(std::string name);
+    void print_hosts();
     
 private:
     static void* discovery(void *ctx);
@@ -35,6 +37,8 @@ private:
     pthread_t t_monitoring{};
     pthread_t t_management{};
     pthread_t t_interface{};
+
+    const int sleep_monitoring = 500 * 1000;
 };
 
 #endif //_MANAGER_H

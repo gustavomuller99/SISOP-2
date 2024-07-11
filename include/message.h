@@ -19,14 +19,17 @@ const int BUFFER_SIZE = 256;
 enum MessageType {
     SleepServiceDiscovery = 0,
     SleepServiceMonitoring = 1,
-    HostAwaken = 2,
-    HostAsleep = 3
+    SleepServiceExit = 2,
+    Error = -1
 };
 
 // Descrição dos protocolos:
 /*
  * SleepServiceDiscovery:
- * Type|Seqn|Timestamp|Hostname 
+ * Type|Seqn|Timestamp|Hostname
+ *
+ * SleepServiceMonitoring:
+ * Type|Seqn|Timestamp|HostState
  */
 
 class Packet {
@@ -40,6 +43,7 @@ public:
     std::string to_payload();
 
     std::string src_ip;
+    std::string src_mac;
 
     MessageType get_type() const {
         return static_cast<MessageType>(type);
@@ -52,9 +56,13 @@ private:
     std::vector<std::string> data; // stack de dados
 };
 
+/* functions to get mac address of current user */
+std::string format_mac_address(const unsigned char* mac);
+std::string get_mac_address();
+
 /* send packet on broadcast using port and socket  */
 void send_broadcast(Packet p, int sockfd, int port);
-void send_broadcast_tcp(Packet p, int sockfd, int port, std::string ip = "", bool is_manager = false);
+void send_tcp(Packet p, int sockfd, int port, std::string ip = "", bool begin = false);
 
 /* waits for packcage and parses into object */
 Packet rec_packet(int sockfd);
