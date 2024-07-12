@@ -1,9 +1,11 @@
 #include <host.h>
 
 void Host::init() {
+    pthread_mutex_lock(&this->mutex_ncurses);
     initscr();
     refresh();
     curs_set(false);
+    pthread_mutex_unlock(&this->mutex_ncurses);
 
     pthread_create(&this->t_discovery, NULL, Host::discovery, this);
     pthread_create(&this->t_monitoring, NULL, Host::monitoring, this);
@@ -19,7 +21,9 @@ void Host::init() {
         close(this->sck_monitoring);
     } else pthread_join(this->t_monitoring, NULL);
 
+    pthread_mutex_lock(&this->mutex_ncurses);
     endwin();
+    pthread_mutex_unlock(&this->mutex_ncurses);
 }
 
 void Host::switch_state(HostState new_state) {
@@ -32,7 +36,6 @@ void Host::switch_state(HostState new_state) {
 }
 
 void Host::exit_handler(int sn, siginfo_t* t, void* ctx) {
-    puts(""); /* feeds input thread */
     this->switch_state(HostState::Exit);
 }
 
@@ -112,7 +115,6 @@ void *Host::monitoring(void *ctx) {
         if (h->state == HostState::Exit) {
             Packet response = Packet(MessageType::SleepServiceExit, 0, 0);
             send_tcp(response, h->sck_monitoring, PORT_MONITORING);
-            close(h->sck_monitoring);
             break;
         } else {
             Packet response = Packet(MessageType::SleepServiceMonitoring, 0, 0);
@@ -130,18 +132,25 @@ void *Host::interface(void *ctx) {
 
     WINDOW *output;
     int start_x = 0, start_y = 0, width = 50, height = 2;
+    pthread_mutex_lock(&h->mutex_ncurses);
     output = create_newwin(height, width, start_y, start_x);
+    pthread_mutex_unlock(&h->mutex_ncurses);
 
     while (h->state != HostState::Exit) {
+        pthread_mutex_lock(&h->mutex_ncurses);
         wclear(output);
         wprintw(output, "Current host state: %s\n", string_from_state(h->state).data());
         wprintw(output, "Press EXIT to quit");
         wrefresh(output);
+        pthread_mutex_unlock(&h->mutex_ncurses);
 
-        usleep(h->sleep_interface);
+        usleep(h->sleep_output);
     }
 
+    pthread_mutex_lock(&h->mutex_ncurses);
     destroy_win(output);
+    pthread_mutex_unlock(&h->mutex_ncurses);
+
     return 0;
 }
 
@@ -150,21 +159,32 @@ void *Host::input(void *ctx) {
 
     WINDOW *input;
     int start_x = 0, start_y = 2, width = 50, height = 1;
+    pthread_mutex_lock(&h->mutex_ncurses);
     input = create_newwin(height, width, start_y, start_x);
-    wclear(input);
+    wtimeout(input, h->input_timeout);
+    pthread_mutex_unlock(&h->mutex_ncurses);
+
+    std::string in = "";
 
     while (h->state != HostState::Exit) {
-        char buff[256];
-        wgetstr(input, buff);
-
-        if (strcmp(buff, "EXIT") == 0) {
-            h->switch_state(HostState::Exit);
+        pthread_mutex_lock(&h->mutex_ncurses);
+        char ch = wgetch(input);
+        if (ch == '\n') {
+            wclear(input);
+            if (in == "EXIT") {
+                h->switch_state(HostState::Exit);
+            }
+            in.clear();
+        } else if (ch >= 0) {
+            in.push_back(ch);
         }
-
-        wclear(input);
+        pthread_mutex_unlock(&h->mutex_ncurses);
     }
 
+    pthread_mutex_lock(&h->mutex_ncurses);
     destroy_win(input);
+    pthread_mutex_unlock(&h->mutex_ncurses);
+
     return 0;
 }
 
@@ -193,29 +213,12 @@ WINDOW *create_newwin(int height, int width, int starty, int startx) {
     WINDOW *local_win;
 
     local_win = newwin(height, width, starty, startx);
-    box(local_win, 0, 0);        /* 0, 0 dá caracteres padrão para as linhas verticais and horizontais	*/
-    wrefresh(local_win);        /* Mostra aquela caixa 	*/
+    wrefresh(local_win);
 
     return local_win;
 }
 
 void destroy_win(WINDOW *local_win) {
-    /* box (local_win, '', ''); : Isso não produzirá o resultado
-      *  desejado de apagar a janela. Vai deixar seus quatro cantos,
-      * e uma lembrança feia da janela.
-    */
-    wborder(local_win, ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ');
-    /* Os parâmetros usados são
-      * 1. win: a janela na qual operar
-      * 2. ls: caractere a ser usado para o lado esquerdo da janela
-      * 3. rs: caractere a ser usado para o lado direito da janela
-      * 4. ts: caractere a ser usado na parte superior da janela
-      * 5. bs: caractere a ser usado na parte inferior da janela
-      * 6. tl: caractere a ser usado para o canto superior esquerdo da janela
-      * 7. tr: caractere a ser usado no canto superior direito da janela
-      * 8. bl: caractere a ser usado no canto inferior esquerdo da janela
-      * 9. br: caractere a ser usado no canto inferior direito da janela
-      */
     wrefresh(local_win);
     delwin(local_win);
 }

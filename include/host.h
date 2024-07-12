@@ -40,10 +40,11 @@ private:
     pthread_t t_input{};
 
     pthread_mutex_t mutex_change_state = PTHREAD_MUTEX_INITIALIZER;
+    pthread_mutex_t mutex_ncurses = PTHREAD_MUTEX_INITIALIZER;
 
     const int sleep_discovery = 500 * 1000; /* 500 ms */
-    const int sleep_interface = 500 * 1000;
-    const int sleep_monitoring = 250 * 1000;
+    const int sleep_output = 500 * 1000;
+    const int input_timeout = 10; /* 10 ms */
 };
 
 HostState state_from_string(std::string state);

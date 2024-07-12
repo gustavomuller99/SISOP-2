@@ -15,6 +15,7 @@ const int PORT_MONITORING = 31000;
 const int PORT_MANAGEMENT = 32000;
 
 const int BUFFER_SIZE = 256;
+const int INPUT_SIZE = 256;
 
 enum MessageType {
     SleepServiceDiscovery = 0,
