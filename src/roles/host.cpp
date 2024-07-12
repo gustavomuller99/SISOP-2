@@ -162,6 +162,8 @@ void *Host::input(void *ctx) {
     pthread_mutex_lock(&h->mutex_ncurses);
     input = create_newwin(height, width, start_y, start_x);
     wtimeout(input, h->input_timeout);
+    wprintw(input, "> ");
+    wmove(input, 0, 3);
     pthread_mutex_unlock(&h->mutex_ncurses);
 
     std::string in = "";
@@ -175,10 +177,14 @@ void *Host::input(void *ctx) {
                 h->switch_state(HostState::Exit);
             }
             in.clear();
+            wprintw(input, "> ");
+            wmove(input, 0, 3);
         } else if (ch >= 0) {
             in.push_back(ch);
         }
         pthread_mutex_unlock(&h->mutex_ncurses);
+
+        usleep(h->sleep_input);
     }
 
     pthread_mutex_lock(&h->mutex_ncurses);

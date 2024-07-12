@@ -8,7 +8,7 @@ std::unique_ptr<Host> h;
 
 void exit_handler(int sn, siginfo_t* t, void* ctx) {
     if (is_manager) {
-        exit(0);
+        m->exit_handler(sn, t, ctx);
     } else {
         h->exit_handler(sn, t, ctx);
     }

@@ -1,15 +1,40 @@
 #include <manager.h>
 
 void Manager::init() {
+    pthread_mutex_lock(&this->mutex_ncurses);
+    initscr();
+    refresh();
+    curs_set(false);
+    pthread_mutex_unlock(&this->mutex_ncurses);
+
     pthread_create(&this->t_discovery, NULL, Manager::discovery, this);
     pthread_create(&this->t_monitoring, NULL, Manager::monitoring, this);
     pthread_create(&this->t_management, NULL, Manager::management, this);
     pthread_create(&this->t_interface, NULL, Manager::interface, this);
+    pthread_create(&this->t_input, NULL, Manager::input, this);
 
     pthread_join(this->t_discovery, NULL);
     pthread_join(this->t_monitoring, NULL);
     pthread_join(this->t_management, NULL);
     pthread_join(this->t_interface, NULL);
+    pthread_join(this->t_input, NULL);
+
+    pthread_mutex_lock(&this->mutex_ncurses);
+    endwin();
+    pthread_mutex_unlock(&this->mutex_ncurses);
+}
+
+void Manager::exit_handler(int sn, siginfo_t* t, void* ctx) {
+    pthread_kill(this->t_discovery, 0);
+    pthread_kill(this->t_monitoring, 0);
+    pthread_kill(this->t_management, 0);
+    pthread_kill(this->t_interface, 0);
+    pthread_kill(this->t_input, 0);
+    close(this->sck_discovery);
+    close(this->sck_monitoring);
+    close(this->sck_management);
+    endwin();
+    exit(0);
 }
 
 void Manager::add_host(KnownHost host) {
@@ -17,7 +42,6 @@ void Manager::add_host(KnownHost host) {
 
     if (!this->has_host(host.name)) {
         this->hosts.push_back(host);
-                hosts_changed = true; // modificação na lista de hosts
     }
 
     pthread_mutex_unlock(&hosts_mutex);
@@ -28,36 +52,6 @@ bool Manager::has_host(std::string name) {
         if (h.name == name) return true;
     }
     return false;
-}
-
-void Manager::print_hosts() {
-    pthread_mutex_lock(&hosts_mutex);
-    if (!hosts_changed) {
-        pthread_mutex_unlock(&hosts_mutex);
-        return; // sem mudanças, não precisa printar
-    }
-
-    std::cout << "\n" << std::endl;
-
-    std::cout << std::left << std::setw(20) << "Hostname"
-              << std::setw(16) << "Endereço IP"
-              << std::setw(21) << "Endereço MAC"
-              << "Status" << std::endl;
-
-    std::cout << std::setw(20) << std::setfill('-') << ""
-              << std::setw(15) << ""
-              << std::setw(20) << ""
-              << std::setfill(' ') << "-------" << std::endl;
-
-    for (const KnownHost &h : this->hosts) {
-        std::cout << std::left << std::setw(20) << h.name
-                  << std::setw(15) << h.ip
-                  << std::setw(20) << h.mac
-                  << string_from_state(h.state) << "\n" << std::endl;
-    }
-
-    hosts_changed = false; // Reset the flag
-    pthread_mutex_unlock(&hosts_mutex);
 }
 
 void *Manager::discovery(void *ctx) {
@@ -151,7 +145,6 @@ void *Manager::monitoring(void *ctx) {
 
             if (response.get_type() == MessageType::SleepServiceExit) {
                 // Handle host exit
-                printf("Host %s exited.\n", host.name.c_str());
                 close(host.sockfd); // Close socket for the exiting host
                 it = m->hosts.erase(it); // Remove host from list
             } else {
@@ -161,14 +154,7 @@ void *Manager::monitoring(void *ctx) {
             }
         }
 
-        m->print_hosts();
         usleep(m->sleep_monitoring);
-
-        // TO-DO: Create MessageType::Timeout
-        // else if(response.get_type() == MessageType::Timeout && host.state == HostState::Awaken) {
-        //     host.state = HostState::Asleep;
-        //     m->print_hosts();
-        // }
     }
 
     close(m->sck_monitoring);
@@ -229,35 +215,92 @@ void* Manager::management(void *ctx) {
 }
 
 void *Manager::interface(void *ctx) {
+    Manager *m = ((Manager *) ctx);
+
+    WINDOW *output;
+    int start_x = 0, start_y = 2, width = 200, height = 50;
+    pthread_mutex_lock(&m->mutex_ncurses);
+    output = create_newwin(height, width, start_y, start_x);
+    pthread_mutex_unlock(&m->mutex_ncurses);
+
+    while (1) {
+        pthread_mutex_lock(&m->mutex_ncurses);
+
+        wclear(output);
+        wmove(output, 0, 0);
+        wprintw(output, "Hostname");
+
+        wmove(output, 0, 17);
+        wprintw(output, "Endereço IP");
+
+        wmove(output, 0, 37);
+        wprintw(output, "Endereço MAC");
+
+        wmove(output, 0, 58);
+        wprintw(output, "Status");
+
+        wmove(output, 1, 0);
+        for (int i = 0; i < 64; ++i) {
+            wprintw(output, "-");
+        }
+
+        for (long unsigned int i = 0; i < m->hosts.size(); ++i) {
+            auto host = m->hosts[i];
+            wmove(output, i + 2, 0);
+            wprintw(output, host.name.c_str());
+
+            wmove(output, i + 2, 17);
+            wprintw(output, host.ip.c_str());
+
+            wmove(output, i + 2, 37);
+            wprintw(output, host.mac.c_str());
+
+            wmove(output, i + 2, 58);
+            wprintw(output, string_from_state(host.state).c_str());
+        }
+
+        wrefresh(output);
+        pthread_mutex_unlock(&m->mutex_ncurses);
+
+        usleep(m->sleep_output);
+    }
+
     return 0;
 }
 
-/* void *Manager::input_handler(void *ctx) {
-    Manager *m = (Manager *)ctx;
+void *Manager::input(void *ctx) {
+    Manager *m = ((Manager *) ctx);
 
-    while (true) {
-        std::string command;
-        std::cout << "\nEnter command: ";
-        std::getline(std::cin, command);
+    WINDOW *input;
+    int start_x = 0, start_y = 0, width = 50, height = 1;
+    pthread_mutex_lock(&m->mutex_ncurses);
+    input = create_newwin(height, width, start_y, start_x);
+    wtimeout(input, m->input_timeout);
+    wprintw(input, "> ");
+    wmove(input, 0, 3);
+    pthread_mutex_unlock(&m->mutex_ncurses);
 
-        if (!command.empty()) {
-            if (command.substr(0, 6) == "wakeup") {
-                std::string hostname = command.substr(7);
+    std::string in = "";
 
-                pthread_mutex_lock(&m->hosts_mutex);
-                for (KnownHost &host : m->hosts) {
-                    if (host.name == hostname && host.state == HostState::Asleep) {
-                        // Simulate waking up host
-                        std::cout << "Waking up " << hostname << std::endl;
-                        host.state = HostState::Awaken; // Update host state
-                    }
-                }
-                pthread_mutex_unlock(&m->hosts_mutex);
-            } else {
-                std::cout << "Unknown command: " << command << std::endl;
-            }
+    while (1) {
+        pthread_mutex_lock(&m->mutex_ncurses);
+        char ch = wgetch(input);
+        if (ch == '\n') {
+            wclear(input);
+            in.clear();
+            wprintw(input, "> ");
+            wmove(input, 0, 2);
+        } else if (ch >= 0) {
+            in.push_back(ch);
         }
+        pthread_mutex_unlock(&m->mutex_ncurses);
+
+        usleep(m->sleep_input);
     }
 
-    return nullptr;
-} */
+    pthread_mutex_lock(&m->mutex_ncurses);
+    destroy_win(input);
+    pthread_mutex_unlock(&m->mutex_ncurses);
+
+    return 0;
+}

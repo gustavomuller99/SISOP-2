@@ -21,13 +21,15 @@ public:
 
     void add_host(KnownHost host);
     bool has_host(std::string name);
-    void print_hosts();
-    
+
+    void exit_handler(int sn, siginfo_t* t, void* ctx);
+
 private:
     static void* discovery(void *ctx);
     static void* monitoring(void *ctx);
     static void* management(void *ctx);
     static void* interface(void *ctx);
+    static void* input(void *ctx);
 
     std::vector<KnownHost> hosts; // list of known hosts
 
@@ -39,11 +41,15 @@ private:
     pthread_t t_monitoring{};
     pthread_t t_management{};
     pthread_t t_interface{};
+    pthread_t t_input{};
 
-    bool hosts_changed = false; // Flag to track changes in hosts
     pthread_mutex_t hosts_mutex = PTHREAD_MUTEX_INITIALIZER;
+    pthread_mutex_t mutex_ncurses = PTHREAD_MUTEX_INITIALIZER;
 
-    const int sleep_monitoring = 500 * 1000;
+    const int sleep_monitoring = 500 * 1000; /* 500 ms */
+    const int sleep_output = 500 * 1000;
+    const int sleep_input = 25 * 1000;
+    const int input_timeout = 25; /* 10 ms */
 };
 
 #endif //_MANAGER_H

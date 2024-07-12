@@ -44,7 +44,8 @@ private:
 
     const int sleep_discovery = 500 * 1000; /* 500 ms */
     const int sleep_output = 500 * 1000;
-    const int input_timeout = 10; /* 10 ms */
+    const int sleep_input = 25 * 1000;
+    const int input_timeout = 25; /* 15 ms */
 };
 
 HostState state_from_string(std::string state);
