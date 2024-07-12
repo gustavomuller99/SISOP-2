@@ -11,15 +11,20 @@ struct KnownHost {
     std::string mac;
     std::string name;
     HostState state;
-    bool connected; // New member to track connection state
-    int sockfd;     // New member to store socket descriptor
+    bool connected; // track host socket connected
+    int sockfd; // host socket
 };
 
 class Manager {
 public:
     void init();
 
+    /* safe operations over hosts list */
     void add_host(KnownHost host);
+    void remove_host(KnownHost host);
+    std::vector<KnownHost> get_hosts(); // get a copy of host list, useful for printing
+    /* --- */
+
     bool has_host(std::string name);
 
     void exit_handler(int sn, siginfo_t* t, void* ctx);

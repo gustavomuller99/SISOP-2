@@ -17,7 +17,7 @@ void Host::init() {
     pthread_join(this->t_input, NULL);
 
     if (this->prev_state == HostState::Discovery) {
-        pthread_kill(this->t_monitoring, 0);
+        pthread_cancel(this->t_monitoring);
         close(this->sck_monitoring);
     } else pthread_join(this->t_monitoring, NULL);
 

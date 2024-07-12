@@ -25,11 +25,11 @@ void Manager::init() {
 }
 
 void Manager::exit_handler(int sn, siginfo_t* t, void* ctx) {
-    pthread_kill(this->t_discovery, 0);
-    pthread_kill(this->t_monitoring, 0);
-    pthread_kill(this->t_management, 0);
-    pthread_kill(this->t_interface, 0);
-    pthread_kill(this->t_input, 0);
+    pthread_cancel(this->t_discovery);
+    pthread_cancel(this->t_monitoring);
+    pthread_cancel(this->t_management);
+    pthread_cancel(this->t_interface);
+    pthread_cancel(this->t_input);
     close(this->sck_discovery);
     close(this->sck_monitoring);
     close(this->sck_management);
@@ -39,11 +39,21 @@ void Manager::exit_handler(int sn, siginfo_t* t, void* ctx) {
 
 void Manager::add_host(KnownHost host) {
     pthread_mutex_lock(&hosts_mutex);
-
     if (!this->has_host(host.name)) {
         this->hosts.push_back(host);
     }
+    pthread_mutex_unlock(&hosts_mutex);
+}
 
+void Manager::remove_host(KnownHost host) {
+    pthread_mutex_lock(&hosts_mutex);
+    for (auto it = this->hosts.begin(); it != this->hosts.end();) {
+        KnownHost &h = *it;
+        if (h.name == host.name) {
+            close(host.sockfd);
+            this->hosts.erase(it);
+        } else it++;
+    }
     pthread_mutex_unlock(&hosts_mutex);
 }
 
@@ -52,6 +62,16 @@ bool Manager::has_host(std::string name) {
         if (h.name == name) return true;
     }
     return false;
+}
+
+std::vector<KnownHost> Manager::get_hosts() {
+    std::vector<KnownHost> copy;
+
+    pthread_mutex_lock(&hosts_mutex);
+    for (KnownHost h: this->hosts) copy.push_back(h);
+    pthread_mutex_unlock(&hosts_mutex);
+
+    return copy;
 }
 
 void *Manager::discovery(void *ctx) {
@@ -111,7 +131,12 @@ void *Manager::monitoring(void *ctx) {
     }
 
     while (1) {
-        for (auto it = m->hosts.begin(); it != m->hosts.end(); ) {
+        std::vector<KnownHost> remove;
+
+        // lock so no changes are made to host list during status update
+        pthread_mutex_lock(&m->hosts_mutex);
+
+        for (auto it = m->hosts.begin(); it != m->hosts.end(); it++) {
             KnownHost &host = *it;
 
             if (!host.connected) {
@@ -145,13 +170,17 @@ void *Manager::monitoring(void *ctx) {
 
             if (response.get_type() == MessageType::SleepServiceExit) {
                 // Handle host exit
-                close(host.sockfd); // Close socket for the exiting host
-                it = m->hosts.erase(it); // Remove host from list
+                remove.push_back(*it);
             } else {
                 std::string state = response.pop();
                 host.state = state_from_string(state);
-                ++it;
             }
+        }
+
+        pthread_mutex_unlock(&m->hosts_mutex);
+
+        for (auto r: remove) {
+            m->remove_host(r);
         }
 
         usleep(m->sleep_monitoring);
@@ -244,8 +273,11 @@ void *Manager::interface(void *ctx) {
             wprintw(output, "-");
         }
 
-        for (long unsigned int i = 0; i < m->hosts.size(); ++i) {
-            auto host = m->hosts[i];
+        /* get copy of hosts, good enough for printing */
+        std::vector<KnownHost> hosts_c = m->get_hosts();
+
+        for (long unsigned int i = 0; i < hosts_c.size(); ++i) {
+            auto host = hosts_c[i];
             wmove(output, i + 2, 0);
             wprintw(output, host.name.c_str());
 
