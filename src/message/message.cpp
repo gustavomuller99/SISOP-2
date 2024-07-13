@@ -50,7 +50,7 @@ void Packet::push(std::string data) {
 
 std::string Packet::pop() {
     if (data.empty()) return "";
-    std::string top = this->data.front();
+    std::string top = this->data.back();
     this->data.pop_back();
     return top;
 }
@@ -135,7 +135,7 @@ Packet rec_packet(int sockfd) {
 }
 
 Packet rec_packet_tcp(int sockfd) {
-    char buffer[BUFFER_SIZE];
+    char buffer[BUFFER_SIZE] = {};
 
     if (read(sockfd, buffer, BUFFER_SIZE) < 0)
         return Packet(MessageType::Error, 0, 0);

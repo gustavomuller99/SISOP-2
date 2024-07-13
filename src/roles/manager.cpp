@@ -79,18 +79,38 @@ std::vector<KnownHost> Manager::get_hosts() {
     return copy;
 }
 
-std::string Manager::check_input(std::string input) {
+std::pair<int, std::string> Manager::check_input(std::string input) {
     std::string wakeup = "WAKEUP";
-    if (wakeup.size() > input.size()) return "";
-
-    for (unsigned long i = 0; i < wakeup.size(); ++i) {
-        if (input[i] != wakeup[i]) return "";
-    }
+    std::string sleep = "SLEEP";
     std::string host = "";
-    for (unsigned long i = wakeup.size() + 1; i < input.size(); ++i) {
-        host.push_back(input[i]);
+    int cmd;
+    {
+        bool is_wakeup = true;
+        if (wakeup.size() > input.size()) is_wakeup = false;
+        for (unsigned long i = 0; i < std::min(input.size(), wakeup.size()); ++i) {
+            if (input[i] != wakeup[i]) is_wakeup = false;
+        }
+        if (is_wakeup) {
+            for (unsigned long i = wakeup.size() + 1; i < input.size(); ++i) {
+                host.push_back(input[i]);
+            }
+            cmd = CommandType::Wakeup;
+        }
     }
-    return host;
+    {
+        bool is_sleep = true;
+        if (sleep.size() > input.size()) is_sleep = false;
+        for (unsigned long i = 0; i < std::min(input.size(), sleep.size()); ++i) {
+            if (input[i] != sleep[i]) is_sleep = false;
+        }
+        if (is_sleep) {
+            for (unsigned long i = sleep.size() + 1; i < input.size(); ++i) {
+                host.push_back(input[i]);
+            }
+            cmd = CommandType::Sleep;
+        }
+    }
+    return {cmd, host};
 }
 
 void *Manager::discovery(void *ctx) {
@@ -256,18 +276,19 @@ void *Manager::command(void *ctx) {
 
     while (1) {
 
-        while(!m->wakeup.empty()) {
-            std::string hostname = m->wakeup.front();
-            m->wakeup.pop_front();
-            if (m->has_host(hostname)) {
+        while(!m->cmd.empty()) {
+            std::pair<int, std::string> send_cmd = m->cmd.front();
+            m->cmd.pop_front();
+            if (m->has_host(send_cmd.second)) {
                 // lock so no changes are made to host list during command send
                 pthread_mutex_lock(&m->hosts_mutex);
 
                 for (auto it = m->hosts.begin(); it != m->hosts.end(); it++) {
                     KnownHost &host = *it;
-                    if (host.name == hostname) {
+                    if (host.name == send_cmd.second) {
                         if (host.connected) {
-                            Packet command = Packet(MessageType::SleepServiceWakeup, 0, 0);
+                            Packet command = Packet(MessageType::SleepServiceCommand, 0, 0);
+                            command.push(std::to_string(send_cmd.first));
                             send_tcp(command, host.sockfd, PORT_MONITORING, host.ip);
                         }
                         break;
@@ -358,9 +379,9 @@ void *Manager::input(void *ctx) {
         char ch = wgetch(input);
         if (ch == '\n') {
             /* check for wakeup command */
-            std::string hostname = m->check_input(in);
-            if (!hostname.empty()) {
-                m->wakeup.push_back(hostname);
+            std::pair<int, std::string> ret = m->check_input(in);
+            if (!ret.second.empty()) {
+                m->cmd.push_back(ret);
             }
             wclear(input);
             in.clear();

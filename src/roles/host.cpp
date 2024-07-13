@@ -116,8 +116,21 @@ void *Host::monitoring(void *ctx) {
             Packet response = Packet(MessageType::SleepServiceExit, 0, 0);
             send_tcp(response, h->sck_monitoring, PORT_MONITORING);
             break;
-        } else if (request.get_type() == MessageType::SleepServiceWakeup) {
-            h->switch_state(HostState::Awaken);
+        } else if (request.get_type() == MessageType::SleepServiceCommand) {
+            std::string s_cmd = request.pop();
+            if (!s_cmd.empty()) {
+                int cmd = stoi(s_cmd);
+                switch(cmd) {
+                    case CommandType::Sleep:
+                        h->switch_state(HostState::Asleep);
+                        break;
+                    case CommandType::Wakeup:
+                        h->switch_state(HostState::Awaken);
+                        break;
+                    default:
+                        break;
+                }
+            }
         } else if (request.get_type() == MessageType::SleepServiceMonitoring) {
             Packet response = Packet(MessageType::SleepServiceMonitoring, 0, 0);
             response.push(std::to_string(h->state));

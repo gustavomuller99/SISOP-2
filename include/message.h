@@ -21,8 +21,13 @@ enum MessageType {
     SleepServiceDiscovery = 0,
     SleepServiceMonitoring = 1,
     SleepServiceExit = 2,
-    SleepServiceWakeup = 3,
+    SleepServiceCommand = 3,
     Error = -1
+};
+
+enum CommandType {
+    Wakeup = 1,
+    Sleep = 2
 };
 
 // Descrição dos protocolos:

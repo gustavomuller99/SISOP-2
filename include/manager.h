@@ -35,10 +35,10 @@ private:
     static void* interface(void *ctx);
     static void* input(void *ctx);
 
-    std::string check_input(std::string input);
+    std::pair<int, std::string> check_input(std::string input);
 
     std::vector<KnownHost> hosts; // list of known hosts
-    std::deque<std::string> wakeup;
+    std::deque<std::pair<int, std::string>> cmd;
 
     int sck_discovery;
     int sck_management;
