@@ -10,12 +10,14 @@ void Manager::init() {
     pthread_create(&this->t_discovery, NULL, Manager::discovery, this);
     pthread_create(&this->t_monitoring, NULL, Manager::monitoring, this);
     pthread_create(&this->t_management, NULL, Manager::management, this);
+    pthread_create(&this->t_command, NULL, Manager::command, this);
     pthread_create(&this->t_interface, NULL, Manager::interface, this);
     pthread_create(&this->t_input, NULL, Manager::input, this);
 
     pthread_join(this->t_discovery, NULL);
     pthread_join(this->t_monitoring, NULL);
     pthread_join(this->t_management, NULL);
+    pthread_join(this->t_command, NULL);
     pthread_join(this->t_interface, NULL);
     pthread_join(this->t_input, NULL);
 
@@ -28,11 +30,14 @@ void Manager::exit_handler(int sn, siginfo_t* t, void* ctx) {
     pthread_cancel(this->t_discovery);
     pthread_cancel(this->t_monitoring);
     pthread_cancel(this->t_management);
+    pthread_cancel(this->t_command);
     pthread_cancel(this->t_interface);
     pthread_cancel(this->t_input);
     close(this->sck_discovery);
-    close(this->sck_monitoring);
     close(this->sck_management);
+    for (auto h : this->hosts) {
+        if (h.connected) close(h.sockfd);
+    }
     endwin();
     exit(0);
 }
@@ -74,6 +79,21 @@ std::vector<KnownHost> Manager::get_hosts() {
     return copy;
 }
 
+std::string Manager::check_input(std::string input) {
+    std::string wakeup = "WAKEUP";
+    if (wakeup.size() > input.size()) return "";
+
+    for (unsigned long i = 0; i < wakeup.size(); ++i) {
+        if (input[i] != wakeup[i]) return "";
+    }
+    std::string host = "";
+    for (unsigned long i = wakeup.size() + 1; i < input.size(); ++i) {
+        host.push_back(input[i]);
+    }
+    std::cout << host << "\n";
+    return host;
+}
+
 void *Manager::discovery(void *ctx) {
     Manager *m = ((Manager *) ctx);
 
@@ -101,13 +121,15 @@ void *Manager::discovery(void *ctx) {
 
         // consumes the package 
         std::string hostname = p.pop();
+        if (hostname.empty()) hostname = p.src_ip;
 
         // discovered new host -> should call management subservice 
         m->add_host({
             p.src_ip,
             p.src_mac,
             hostname,
-            HostState::Discovery
+            HostState::Discovery,
+            false
         });
     }
 
@@ -117,18 +139,6 @@ void *Manager::discovery(void *ctx) {
 
 void *Manager::monitoring(void *ctx) {
     Manager *m = ((Manager *) ctx);
-
-    int trueflag = 1;
-
-    if ((m->sck_monitoring = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-        printf("Manager (Monitoring): ERROR opening socket");
-        exit(EXIT_FAILURE);
-    }
-
-    if (setsockopt(m->sck_monitoring, SOL_SOCKET, SO_REUSEADDR, &trueflag, sizeof trueflag) < 0) {
-        printf("Manager (Monitoring): ERROR setting socket options");
-        exit(EXIT_FAILURE);
-    }
 
     while (1) {
         std::vector<KnownHost> remove;
@@ -164,7 +174,7 @@ void *Manager::monitoring(void *ctx) {
             }
 
             Packet request = Packet(MessageType::SleepServiceMonitoring, 0, 0);
-            send_tcp(request, host.sockfd, PORT_MONITORING, host.ip, true);
+            send_tcp(request, host.sockfd, PORT_MONITORING, host.ip);
 
             Packet response = rec_packet_tcp(host.sockfd);
 
@@ -185,62 +195,92 @@ void *Manager::monitoring(void *ctx) {
 
         usleep(m->sleep_monitoring);
     }
-
-    close(m->sck_monitoring);
     return 0;
 }
 
-void* Manager::management(void *ctx) {
-    Manager *m = (Manager *)ctx;
+void *Manager::management(void *ctx) {
+    return 0;
+//    Manager *m = (Manager *)ctx;
+//
+//    int trueflag = 1;
+//
+//    if ((m->sck_management = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+//        printf("Manager (Management): ERROR opening socket\n");
+//        exit(EXIT_FAILURE);
+//    }
+//
+//    if (setsockopt(m->sck_management, SOL_SOCKET, SO_REUSEADDR, &trueflag, sizeof(trueflag)) < 0) {
+//        printf("Manager (Management): ERROR setting socket options\n");
+//        exit(EXIT_FAILURE);
+//    }
+//
+//    struct sockaddr_in manager_addr;
+//    struct sockaddr_in guest_addr;
+//    socklen_t addr_len = sizeof(struct sockaddr_in);
+//
+//    memset(&guest_addr, 0, sizeof(guest_addr));
+//    guest_addr.sin_family = AF_INET;
+//    guest_addr.sin_port = htons(PORT_MANAGEMENT);
+//    guest_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+//
+//    if (bind(m->sck_management, (struct sockaddr*) &guest_addr, addr_len) < 0){
+//        printf("Manager (Management): ERROR binding\n");
+//        exit(EXIT_FAILURE);
+//    }
+//
+//    listen(m->sck_management, 5);
+//
+//    while (1) {
+//        int client_sock;
+//        if ((client_sock = accept(m->sck_management, (struct sockaddr *) &manager_addr, &addr_len)) < 0) {
+//            perror("Manager (Management): ERROR on accept");
+//            exit(EXIT_FAILURE);
+//        }
+//
+//        // NOT FOR THIS PART OF THE PROJECT
+//        // Handle management requests from clients (for example, list hosts and their states)
+//        // Example: Send current host states to client
+//        /*for (auto& host : m->hosts) {
+//            std::string status_str = (host.state == HostState::Awaken) ? "Awake" : "Asleep";
+//            std::string message = host.name + " is currently " + status_str + "\n";
+//            write(client_sock, message.c_str(), message.length());
+//        }*/
+//
+//        close(client_sock);
+//    }
+//
+//    close(m->sck_management);
+}
 
-    int trueflag = 1;
-
-    if ((m->sck_management = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-        printf("Manager (Management): ERROR opening socket\n");
-        exit(EXIT_FAILURE); 
-    }
-
-    if (setsockopt(m->sck_management, SOL_SOCKET, SO_REUSEADDR, &trueflag, sizeof(trueflag)) < 0) {
-        printf("Manager (Management): ERROR setting socket options\n");
-        exit(EXIT_FAILURE);
-    }
-
-    struct sockaddr_in manager_addr;
-    struct sockaddr_in guest_addr;
-    socklen_t addr_len = sizeof(struct sockaddr_in);
-
-    memset(&guest_addr, 0, sizeof(guest_addr));
-    guest_addr.sin_family = AF_INET;
-    guest_addr.sin_port = htons(PORT_MANAGEMENT);
-    guest_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    
-    if (bind(m->sck_management, (struct sockaddr*) &guest_addr, addr_len) < 0){
-        printf("Manager (Management): ERROR binding\n");
-        exit(EXIT_FAILURE);
-    }
-
-    listen(m->sck_management, 5);
+void *Manager::command(void *ctx) {
+    Manager *m = ((Manager *) ctx);
 
     while (1) {
-        int client_sock;
-        if ((client_sock = accept(m->sck_management, (struct sockaddr *) &manager_addr, &addr_len)) < 0) {
-            perror("Manager (Management): ERROR on accept");
-            exit(EXIT_FAILURE);
+
+        while(!m->wakeup.empty()) {
+            std::string hostname = m->wakeup.front();
+            m->wakeup.pop_front();
+            if (m->has_host(hostname)) {
+                // lock so no changes are made to host list during command send
+                pthread_mutex_lock(&m->hosts_mutex);
+
+                for (auto it = m->hosts.begin(); it != m->hosts.end(); it++) {
+                    KnownHost &host = *it;
+                    if (host.name == hostname) {
+                        if (host.connected) {
+                            Packet command = Packet(MessageType::SleepServiceWakeup, 0, 0);
+                            send_tcp(command, host.sockfd, PORT_MONITORING, host.ip);
+                        }
+                        break;
+                    }
+                }
+
+                pthread_mutex_unlock(&m->hosts_mutex);
+            }
         }
 
-        // NOT FOR THIS PART OF THE PROJECT
-        // Handle management requests from clients (for example, list hosts and their states)
-        // Example: Send current host states to client
-        /*for (auto& host : m->hosts) {
-            std::string status_str = (host.state == HostState::Awaken) ? "Awake" : "Asleep";
-            std::string message = host.name + " is currently " + status_str + "\n";
-            write(client_sock, message.c_str(), message.length());
-        }*/
-
-        close(client_sock);
+        usleep(m->sleep_command);
     }
-
-    close(m->sck_management);
 }
 
 void *Manager::interface(void *ctx) {
@@ -309,7 +349,7 @@ void *Manager::input(void *ctx) {
     input = create_newwin(height, width, start_y, start_x);
     wtimeout(input, m->input_timeout);
     wprintw(input, "> ");
-    wmove(input, 0, 3);
+    wmove(input, 0, 2);
     pthread_mutex_unlock(&m->mutex_ncurses);
 
     std::string in = "";
@@ -318,6 +358,11 @@ void *Manager::input(void *ctx) {
         pthread_mutex_lock(&m->mutex_ncurses);
         char ch = wgetch(input);
         if (ch == '\n') {
+            /* check for wakeup command */
+            std::string hostname = m->check_input(in);
+            if (!hostname.empty()) {
+                m->wakeup.push_back(hostname);
+            }
             wclear(input);
             in.clear();
             wprintw(input, "> ");

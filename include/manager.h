@@ -24,27 +24,29 @@ public:
     void remove_host(KnownHost host);
     std::vector<KnownHost> get_hosts(); // get a copy of host list, useful for printing
     /* --- */
-
     bool has_host(std::string name);
-
     void exit_handler(int sn, siginfo_t* t, void* ctx);
 
 private:
     static void* discovery(void *ctx);
     static void* monitoring(void *ctx);
     static void* management(void *ctx);
+    static void* command(void *ctx);
     static void* interface(void *ctx);
     static void* input(void *ctx);
 
+    std::string check_input(std::string input);
+
     std::vector<KnownHost> hosts; // list of known hosts
+    std::deque<std::string> wakeup;
 
     int sck_discovery;
-    int sck_monitoring;
     int sck_management;
 
     pthread_t t_discovery{};
     pthread_t t_monitoring{};
     pthread_t t_management{};
+    pthread_t t_command{};
     pthread_t t_interface{};
     pthread_t t_input{};
 
@@ -52,6 +54,7 @@ private:
     pthread_mutex_t mutex_ncurses = PTHREAD_MUTEX_INITIALIZER;
 
     const int sleep_monitoring = 500 * 1000; /* 500 ms */
+    const int sleep_command = 500 * 1000;
     const int sleep_output = 500 * 1000;
     const int sleep_input = 25 * 1000;
     const int input_timeout = 25; /* 10 ms */

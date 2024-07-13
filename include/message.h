@@ -21,6 +21,7 @@ enum MessageType {
     SleepServiceDiscovery = 0,
     SleepServiceMonitoring = 1,
     SleepServiceExit = 2,
+    SleepServiceWakeup = 3,
     Error = -1
 };
 
@@ -63,7 +64,7 @@ std::string get_mac_address();
 
 /* send packet on broadcast using port and socket  */
 void send_broadcast(Packet p, int sockfd, int port);
-void send_tcp(Packet p, int sockfd, int port, std::string ip = "", bool begin = false);
+void send_tcp(Packet p, int sockfd, int port, std::string ip = "");
 
 /* waits for packcage and parses into object */
 Packet rec_packet(int sockfd);

@@ -116,7 +116,9 @@ void *Host::monitoring(void *ctx) {
             Packet response = Packet(MessageType::SleepServiceExit, 0, 0);
             send_tcp(response, h->sck_monitoring, PORT_MONITORING);
             break;
-        } else {
+        } else if (request.get_type() == MessageType::SleepServiceWakeup) {
+            h->switch_state(HostState::Awaken);
+        } else if (request.get_type() == MessageType::SleepServiceMonitoring) {
             Packet response = Packet(MessageType::SleepServiceMonitoring, 0, 0);
             response.push(std::to_string(h->state));
             send_tcp(response, h->sck_monitoring, PORT_MONITORING);

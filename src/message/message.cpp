@@ -106,20 +106,7 @@ void send_broadcast(Packet p, int sockfd, int port) {
     return;
 }
 
-void send_tcp(Packet p, int sockfd, int port, std::string ip, bool begin) {
-    struct sockaddr_in guest_addr;
-    memset(&guest_addr, 0, sizeof(guest_addr));
-
-    if(begin) {
-        guest_addr.sin_family = AF_INET;
-        guest_addr.sin_port = htons(port);
-        inet_aton(ip.c_str(), &guest_addr.sin_addr);
-
-        connect(sockfd,
-            (struct sockaddr *)&guest_addr,
-            sizeof(guest_addr));
-    }
-
+void send_tcp(Packet p, int sockfd, int port, std::string ip) {
     std::string str = p.to_payload();
     const char* message = str.c_str();
 
