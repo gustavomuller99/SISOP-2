@@ -90,7 +90,6 @@ std::string Manager::check_input(std::string input) {
     for (unsigned long i = wakeup.size() + 1; i < input.size(); ++i) {
         host.push_back(input[i]);
     }
-    std::cout << host << "\n";
     return host;
 }
 
