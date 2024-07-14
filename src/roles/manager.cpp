@@ -193,6 +193,11 @@ void *Manager::monitoring(void *ctx) {
             }
 
             Packet request = Packet(MessageType::SleepServiceMonitoring, 0, 0);
+
+            char hostname[BUFFER_SIZE];
+            gethostname(hostname, BUFFER_SIZE);
+            request.push(hostname);
+
             send_tcp(request, host.sockfd, PORT_MONITORING, host.ip);
 
             Packet response = rec_packet_tcp(host.sockfd);

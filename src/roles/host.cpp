@@ -102,6 +102,8 @@ void *Host::monitoring(void *ctx) {
         exit(EXIT_FAILURE);
     }
 
+    h->m_info.ip = inet_ntoa(manager_addr.sin_addr);
+
     /* connection established */
     while (1) {
         Packet request = rec_packet_tcp(h->sck_monitoring);
@@ -132,6 +134,11 @@ void *Host::monitoring(void *ctx) {
                 }
             }
         } else if (request.get_type() == MessageType::SleepServiceMonitoring) {
+            std::string manager_name = request.pop();
+
+            h->m_info.mac = request.src_mac;
+            h->m_info.name = manager_name;
+
             Packet response = Packet(MessageType::SleepServiceMonitoring, 0, 0);
             response.push(std::to_string(h->state));
             send_tcp(response, h->sck_monitoring, PORT_MONITORING);
@@ -146,7 +153,7 @@ void *Host::interface(void *ctx) {
     Host *h = ((Host *) ctx);
 
     WINDOW *output;
-    int start_x = 0, start_y = 0, width = 50, height = 2;
+    int start_x = 0, start_y = 2, width = 200, height = 4;
     pthread_mutex_lock(&h->mutex_ncurses);
     output = create_newwin(height, width, start_y, start_x);
     pthread_mutex_unlock(&h->mutex_ncurses);
@@ -154,6 +161,7 @@ void *Host::interface(void *ctx) {
     while (h->state != HostState::Exit) {
         pthread_mutex_lock(&h->mutex_ncurses);
         wclear(output);
+        wprintw(output, "Manager Info: (IP) %s (MAC) %s (NAME) %s\n", h->m_info.ip.data(), h->m_info.mac.data(), h->m_info.name.data());
         wprintw(output, "Current host state: %s\n", string_from_state(h->state).data());
         wprintw(output, "Press EXIT to quit");
         wrefresh(output);
@@ -173,12 +181,12 @@ void *Host::input(void *ctx) {
     Host *h = ((Host *) ctx);
 
     WINDOW *input;
-    int start_x = 0, start_y = 2, width = 50, height = 1;
+    int start_x = 0, start_y = 0, width = 50, height = 1;
     pthread_mutex_lock(&h->mutex_ncurses);
     input = create_newwin(height, width, start_y, start_x);
     wtimeout(input, h->input_timeout);
     wprintw(input, "> ");
-    wmove(input, 0, 3);
+    wmove(input, 0, 2);
     pthread_mutex_unlock(&h->mutex_ncurses);
 
     std::string in = "";

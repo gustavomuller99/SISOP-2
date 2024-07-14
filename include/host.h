@@ -13,6 +13,10 @@ enum HostState {
     Exit = 4
 };
 
+struct ManagerInfo {
+    std::string ip = "", mac = "", name = "";
+};
+
 class Host {
 public:
     Host() = default;
@@ -33,6 +37,8 @@ private:
     
     int sck_discovery;
     int sck_monitoring;
+
+    ManagerInfo m_info = {"-1", "-1", "-1"};
 
     pthread_t t_discovery{};
     pthread_t t_monitoring{};

@@ -139,8 +139,12 @@ Packet rec_packet_tcp(int sockfd) {
 
     if (read(sockfd, buffer, BUFFER_SIZE) < 0)
         return Packet(MessageType::Error, 0, 0);
-    else
-        return Packet(buffer);
+    else {
+        Packet p = Packet(buffer);
+        p.src_mac = get_mac_address();
+
+        return p;
+    }
 }
 
 std::string format_mac_address(const unsigned char* mac) {
