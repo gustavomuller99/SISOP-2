@@ -10,7 +10,7 @@ void Host::init() {
     pthread_create(&this->t_discovery, NULL, Host::discovery, this);
     pthread_create(&this->t_monitoring, NULL, Host::monitoring, this);
     pthread_create(&this->t_interface, NULL, Host::interface, this);
-    pthread_create(&this->t_interface, NULL, Host::input, this);
+    pthread_create(&this->t_input, NULL, Host::input, this);
 
     pthread_join(this->t_discovery, NULL);
     pthread_join(this->t_interface, NULL);

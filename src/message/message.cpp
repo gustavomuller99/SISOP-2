@@ -1,23 +1,6 @@
 #include <message.h>
-#include <iostream>
-#include <cstring>
-#include <pthread.h>
-#include <string>
-#include <list>
-#include <map>
-#include <iomanip>
-#include <mutex>
-#include <sys/types.h>
-#include <sys/socket.h>
 #include <sys/ioctl.h>
-#include <netinet/in.h>
 #include <net/if.h>
-#include <csignal>
-#include <netdb.h>
-#include <arpa/inet.h>
-#include <vector>
-#include <cstdlib>
-#include <ifaddrs.h>
 
 Packet::Packet(int type, int seqn, int timestamp) {
     this->type = type;
