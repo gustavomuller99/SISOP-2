@@ -50,7 +50,6 @@ public:
     std::string to_payload();
 
     std::string src_ip;
-    std::string src_mac;
 
     MessageType get_type() const {
         return static_cast<MessageType>(type);

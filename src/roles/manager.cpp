@@ -138,14 +138,15 @@ void *Manager::discovery(void *ctx) {
     while (1) {
         Packet p = rec_packet(m->sck_discovery);
 
-        // consumes the package 
+        // consumes the package
+        std::string mac = p.pop();
         std::string hostname = p.pop();
         if (hostname.empty()) hostname = p.src_ip;
 
         // discovered new host -> should call management subservice 
         m->add_host({
             p.src_ip,
-            p.src_mac,
+            mac,
             hostname,
             HostState::Discovery,
             false
@@ -197,6 +198,7 @@ void *Manager::monitoring(void *ctx) {
             char hostname[BUFFER_SIZE];
             gethostname(hostname, BUFFER_SIZE);
             request.push(hostname);
+            request.push(get_mac_address());
 
             send_tcp(request, host.sockfd, PORT_MONITORING, host.ip);
 

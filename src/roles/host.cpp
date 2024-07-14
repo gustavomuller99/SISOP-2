@@ -57,6 +57,7 @@ void *Host::discovery(void *ctx) {
         char hostname[BUFFER_SIZE];
         gethostname(hostname, BUFFER_SIZE);
         p.push(hostname);
+        p.push(get_mac_address());
 
         send_broadcast(p, h->sck_discovery, PORT_DISCOVERY);
 
@@ -134,9 +135,10 @@ void *Host::monitoring(void *ctx) {
                 }
             }
         } else if (request.get_type() == MessageType::SleepServiceMonitoring) {
+            std::string manager_mac = request.pop();
             std::string manager_name = request.pop();
 
-            h->m_info.mac = request.src_mac;
+            h->m_info.mac = manager_mac;
             h->m_info.name = manager_name;
 
             Packet response = Packet(MessageType::SleepServiceMonitoring, 0, 0);

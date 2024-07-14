@@ -44,7 +44,6 @@ void Packet::print() {
     std::cout << "Seqn: " << this->seqn << "\n";
     std::cout << "Timestamp: " << this->timestamp << "\n";
     std::cout << "IP: " << this->src_ip << "\n";
-    std::cout << "MAC: " << this->src_mac << "\n";
     std::cout << "Data: ";
     for (std::string i : this->data) {
         std::cout << i << " ";
@@ -112,7 +111,6 @@ Packet rec_packet(int sockfd) {
 
     Packet p = Packet(rbuf);
     p.src_ip = inet_ntoa(rec_addr.sin_addr);
-    p.src_mac = get_mac_address();
 
     return p;
 }
@@ -124,8 +122,6 @@ Packet rec_packet_tcp(int sockfd) {
         return Packet(MessageType::Error, 0, 0);
     else {
         Packet p = Packet(buffer);
-        p.src_mac = get_mac_address();
-
         return p;
     }
 }
