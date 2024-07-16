@@ -36,6 +36,7 @@ private:
     static void* input(void *ctx);
 
     std::pair<int, std::string> check_input(std::string input);
+    void send_wake_on_lan_packet(std::string mac_address);
 
     std::vector<KnownHost> hosts; // list of known hosts
     std::deque<std::pair<int, std::string>> cmd;
@@ -57,7 +58,8 @@ private:
     const int sleep_command = 500 * 1000;
     const int sleep_output = 500 * 1000;
     const int sleep_input = 25 * 1000;
-    const int input_timeout = 25; /* 10 ms */
+    const int input_timeout = 25; /* 25 ms */
+    const int tcp_timeout = 250 * 1000;
 };
 
 #endif //_MANAGER_H

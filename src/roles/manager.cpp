@@ -81,7 +81,6 @@ std::vector<KnownHost> Manager::get_hosts() {
 
 std::pair<int, std::string> Manager::check_input(std::string input) {
     std::string wakeup = "WAKEUP";
-    std::string sleep = "SLEEP";
     std::string host = "";
     int cmd;
     {
@@ -97,20 +96,19 @@ std::pair<int, std::string> Manager::check_input(std::string input) {
             cmd = CommandType::Wakeup;
         }
     }
-    {
-        bool is_sleep = true;
-        if (sleep.size() > input.size()) is_sleep = false;
-        for (unsigned long i = 0; i < std::min(input.size(), sleep.size()); ++i) {
-            if (input[i] != sleep[i]) is_sleep = false;
-        }
-        if (is_sleep) {
-            for (unsigned long i = sleep.size() + 1; i < input.size(); ++i) {
-                host.push_back(input[i]);
-            }
-            cmd = CommandType::Sleep;
-        }
-    }
     return {cmd, host};
+}
+
+void Manager::send_wake_on_lan_packet(std::string mac_address) {
+    char comando[256];
+    snprintf(comando, sizeof(comando), "wakeonlan %s", mac_address.c_str());
+
+    FILE* fp = popen(comando, "r");
+    if (fp == NULL) {
+        perror("Erro ao enviar WOL.");
+        return;
+    }
+    pclose(fp);
 }
 
 void *Manager::discovery(void *ctx) {
@@ -176,6 +174,16 @@ void *Manager::monitoring(void *ctx) {
                     continue;
                 }
 
+                timeval tv;
+                tv.tv_sec = 0;
+                tv.tv_usec = m->tcp_timeout;
+
+                if (setsockopt (sockfd, SOL_SOCKET, SO_RCVTIMEO, (struct timeval *) &tv, sizeof(struct timeval)) < 0) {
+                    perror("Manager (Monitoring): Error setting timeout");
+                    close(sockfd);
+                    continue;
+                }
+
                 struct sockaddr_in guest_addr;
                 memset(&guest_addr, 0, sizeof(guest_addr));
                 guest_addr.sin_family = AF_INET;
@@ -204,7 +212,9 @@ void *Manager::monitoring(void *ctx) {
 
             Packet response = rec_packet_tcp(host.sockfd);
 
-            if (response.get_type() == MessageType::SleepServiceExit) {
+            if (response.get_type() == MessageType::Error) {
+                host.state = HostState::Asleep;
+            } if (response.get_type() == MessageType::SleepServiceExit) {
                 // Handle host exit
                 remove.push_back(*it);
             } else {
@@ -293,6 +303,9 @@ void *Manager::command(void *ctx) {
                 for (auto it = m->hosts.begin(); it != m->hosts.end(); it++) {
                     KnownHost &host = *it;
                     if (host.name == send_cmd.second) {
+                        if (send_cmd.first == CommandType::Wakeup) {
+                            m->send_wake_on_lan_packet(host.mac);
+                        }
                         if (host.connected) {
                             Packet command = Packet(MessageType::SleepServiceCommand, 0, 0);
                             command.push(std::to_string(send_cmd.first));

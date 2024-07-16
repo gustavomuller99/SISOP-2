@@ -111,7 +111,7 @@ void *Host::monitoring(void *ctx) {
 
         // if first discovered, switch state
         if (h->state == HostState::Discovery) {
-            h->switch_state(HostState::Asleep);
+            h->switch_state(HostState::Awaken);
         }
 
         // answers only the host current state OR exits

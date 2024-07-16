@@ -1,0 +1,7 @@
+Para rodar o programa:
+
+- make clean (limpa os arquivos)
+- make
+- ./sleep_service (para rodar como host)
+- ./sleep_service manager (para rodar como manager)
+
