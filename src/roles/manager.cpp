@@ -214,7 +214,7 @@ void *Manager::monitoring(void *ctx) {
 
             if (response.get_type() == MessageType::Error) {
                 host.state = HostState::Asleep;
-            } if (response.get_type() == MessageType::SleepServiceExit) {
+            } else if (response.get_type() == MessageType::SleepServiceExit) {
                 // Handle host exit
                 remove.push_back(*it);
             } else {
