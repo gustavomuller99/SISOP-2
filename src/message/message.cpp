@@ -123,6 +123,7 @@ Packet rec_packet_tcp(int sockfd) {
     if (n < 0) {
         if (errno == EAGAIN || errno == EWOULDBLOCK) {
             std::cout << "Manager (Monitoring): Timeout while reading from socket" << std::endl;
+            return Packet(MessageType::Error, 0, 0);
         } else {
             perror("Manager (Monitoring): Error reading from socket");
         }
