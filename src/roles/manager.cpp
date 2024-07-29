@@ -212,7 +212,7 @@ void *Manager::monitoring(void *ctx) {
 
             Packet response = rec_packet_tcp(host.sockfd);
 
-            if (response.get_type() == MessageType::Error) {
+            if (!response.get_type()) {
                 std::cout << "\nResponse received: ERROR" << std::endl;
                 host.state = HostState::Asleep;
             } else if (response.get_type() == MessageType::SleepServiceExit) {
