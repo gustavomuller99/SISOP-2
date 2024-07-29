@@ -174,11 +174,11 @@ void *Manager::monitoring(void *ctx) {
                     continue;
                 }
 
-                timeval tv;
-                tv.tv_sec = 0;
-                tv.tv_usec = m->tcp_timeout;
+                struct timeval timeout;
+                timeout.tv_sec = 1;
+                timeout.tv_usec = 0;
 
-                if (setsockopt (sockfd, SOL_SOCKET, SO_RCVTIMEO, (struct timeval *) &tv, sizeof(struct timeval)) < 0) {
+                if (setsockopt (sockfd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) < 0) {
                     perror("Manager (Monitoring): Error setting timeout");
                     close(sockfd);
                     continue;
@@ -213,11 +213,14 @@ void *Manager::monitoring(void *ctx) {
             Packet response = rec_packet_tcp(host.sockfd);
 
             if (response.get_type() == MessageType::Error) {
+                std::cout << "\nResponse received: ERROR" << std::endl;
                 host.state = HostState::Asleep;
             } else if (response.get_type() == MessageType::SleepServiceExit) {
                 // Handle host exit
+                std::cout << "\nResponse received: EXIT" << std::endl;
                 remove.push_back(*it);
             } else {
+                std::cout << "\nResponse received: OK" << std::endl;
                 std::string state = response.pop();
                 host.state = state_from_string(state);
             }
