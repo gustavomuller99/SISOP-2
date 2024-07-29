@@ -77,8 +77,13 @@ void *Host::monitoring(void *ctx) {
         exit(EXIT_FAILURE); 
     }
 
-    if (setsockopt(h->sck_monitoring, SOL_SOCKET, SO_REUSEADDR, &trueflag, sizeof(trueflag)) < 0) {
-        printf("Manager (Monitoring): ERROR setting socket timeout");
+    struct timeval timeout;
+    timeout.tv_sec = 1;
+    timeout.tv_usec = 0;
+
+    if (setsockopt(h->sck_monitoring, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) < 0) {
+        perror("Host (Monitoring): Error setting timeout");
+        close(h->sck_monitoring);
         exit(EXIT_FAILURE);
     }
 
