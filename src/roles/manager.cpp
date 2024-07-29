@@ -178,7 +178,7 @@ void *Manager::monitoring(void *ctx) {
                 timeout.tv_sec = 1;
                 timeout.tv_usec = 0;
 
-                if (setsockopt (sockfd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) < 0) {
+                if (setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) < 0) {
                     perror("Manager (Monitoring): Error setting timeout");
                     close(sockfd);
                     continue;

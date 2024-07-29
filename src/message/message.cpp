@@ -118,9 +118,20 @@ Packet rec_packet(int sockfd) {
 Packet rec_packet_tcp(int sockfd) {
     char buffer[BUFFER_SIZE] = {};
 
-    if (read(sockfd, buffer, BUFFER_SIZE) < 0)
+    int n = read(sockfd, buffer, BUFFER_SIZE);
+
+    if (n < 0) {
+        if (errno == EAGAIN || errno == EWOULDBLOCK) {
+            std::cout << "Manager (Monitoring): Timeout while reading from socket" << std::endl;
+        } else {
+            perror("Manager (Monitoring): Error reading from socket");
+        }
         return Packet(MessageType::Error, 0, 0);
-    else {
+    } else if (n == 0) {
+        // Conexão fechada pelo peer
+        std::cout << "Manager (Monitoring): Connection closed by peer" << std::endl;
+        return Packet(MessageType::Error, 0, 0);
+    } else {
         Packet p = Packet(buffer);
         return p;
     }
