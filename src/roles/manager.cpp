@@ -210,19 +210,25 @@ void *Manager::monitoring(void *ctx) {
 
             send_tcp(request, host.sockfd, PORT_MONITORING, host.ip);
 
-            Packet response = rec_packet_tcp(host.sockfd);
+            char buffer[BUFFER_SIZE] = {};
 
-            if (response.get_type() == MessageType::Error) {
+            if (read(host.sockfd, buffer, BUFFER_SIZE) < 0) {
                 std::cout << "\nResponse received: ERROR" << std::endl;
                 host.state = HostState::Asleep;
-            } else if (response.get_type() == MessageType::SleepServiceExit) {
+            }
+            else {
+                Packet response = Packet(buffer);
+
+                if (response.get_type() == MessageType::SleepServiceExit) {
                 // Handle host exit
                 std::cout << "\nResponse received: EXIT" << std::endl;
                 remove.push_back(*it);
-            } else {
-                std::cout << "\nResponse received: OK" << std::endl;
-                std::string state = response.pop();
-                host.state = state_from_string(state);
+                } 
+                else {
+                    std::cout << "\nResponse received: OK" << std::endl;
+                    std::string state = response.pop();
+                    host.state = state_from_string(state);
+                }   
             }
         }
 
