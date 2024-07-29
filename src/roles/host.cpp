@@ -39,6 +39,59 @@ void Host::exit_handler(int sn, siginfo_t* t, void* ctx) {
     this->switch_state(HostState::Exit);
 }
 
+void Host::create_monitoring_socket() {
+    close(sck_monitoring);
+
+    int trueflag = 1;
+
+    if ((sck_monitoring = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+        printf("Host (Monitoring): ERROR opening socket\n");
+        exit(EXIT_FAILURE); 
+    }
+
+    if (setsockopt(sck_monitoring, SOL_SOCKET, SO_REUSEADDR, &trueflag, sizeof(trueflag)) < 0) {
+        printf("Manager (Monitoring): ERROR reusing addr");
+        exit(EXIT_FAILURE);
+    }
+
+    if (setsockopt(sck_monitoring, SOL_SOCKET, SO_REUSEPORT, &trueflag, sizeof(trueflag)) < 0) {
+        printf("Manager (Monitoring): ERROR reusing port");
+        exit(EXIT_FAILURE);
+    }
+
+    struct sockaddr_in manager_addr;
+    struct sockaddr_in guest_addr;
+    socklen_t addr_len = sizeof(struct sockaddr_in);
+
+    memset(&guest_addr, 0, sizeof(guest_addr));
+    guest_addr.sin_family = AF_INET;
+    guest_addr.sin_port = htons(PORT_MONITORING);
+    guest_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    
+    if (bind(sck_monitoring, (struct sockaddr*) &guest_addr, addr_len) < 0){
+        printf("Host (Monitoring): ERROR binding\n");
+        exit(EXIT_FAILURE);
+    }
+
+    listen(sck_monitoring, 5);
+
+    if ((sck_monitoring = accept(sck_monitoring, (struct sockaddr *) &manager_addr, &addr_len)) < 0) {
+        perror("Host (Monitoring): ERROR on accept");
+        exit(EXIT_FAILURE);
+    }
+
+    timeval tv;
+    tv.tv_sec = tcp_timeout;
+    tv.tv_usec = 0;
+
+    if (setsockopt (sck_monitoring, SOL_SOCKET, SO_RCVTIMEO, (struct timeval *) &tv, sizeof(struct timeval)) < 0) {
+        perror("Manager (Monitoring): Error setting timeout");
+        close(sck_monitoring);
+    }
+
+    m_info.ip = inet_ntoa(manager_addr.sin_addr);
+}
+
 void *Host::discovery(void *ctx) {
     Host *h = ((Host *) ctx);
 
@@ -70,6 +123,7 @@ void *Host::discovery(void *ctx) {
 
 void *Host::monitoring(void *ctx) {
     Host *h = ((Host *) ctx);
+
     int trueflag = 1;
 
     if ((h->sck_monitoring = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
@@ -78,7 +132,12 @@ void *Host::monitoring(void *ctx) {
     }
 
     if (setsockopt(h->sck_monitoring, SOL_SOCKET, SO_REUSEADDR, &trueflag, sizeof(trueflag)) < 0) {
-        printf("Manager (Monitoring): ERROR setting socket timeout");
+        printf("Manager (Monitoring): ERROR reusing addr");
+        exit(EXIT_FAILURE);
+    }
+
+    if (setsockopt(h->sck_monitoring, SOL_SOCKET, SO_REUSEPORT, &trueflag, sizeof(trueflag)) < 0) {
+        printf("Manager (Monitoring): ERROR reusing port");
         exit(EXIT_FAILURE);
     }
 
@@ -103,8 +162,17 @@ void *Host::monitoring(void *ctx) {
         exit(EXIT_FAILURE);
     }
 
-    h->m_info.ip = inet_ntoa(manager_addr.sin_addr);
+    timeval tv;
+    tv.tv_sec = h->tcp_timeout;
+    tv.tv_usec = 0;
 
+    if (setsockopt (h->sck_monitoring, SOL_SOCKET, SO_RCVTIMEO, (struct timeval *) &tv, sizeof(struct timeval)) < 0) {
+        perror("Manager (Monitoring): Error setting timeout");
+        close(h->sck_monitoring);
+    }
+
+    h->m_info.ip = inet_ntoa(manager_addr.sin_addr);
+    
     /* connection established */
     while (1) {
         Packet request = rec_packet_tcp(h->sck_monitoring);
@@ -114,26 +182,17 @@ void *Host::monitoring(void *ctx) {
             h->switch_state(HostState::Awaken);
         }
 
+        // timed out == returned from suspend
+        if (request.get_type() == MessageType::Error) {
+            h->create_monitoring_socket();
+        } 
         // answers only the host current state OR exits
-        if (h->state == HostState::Exit) {
+        else if (h->state == HostState::Exit) {
             Packet response = Packet(MessageType::SleepServiceExit, 0, 0);
             send_tcp(response, h->sck_monitoring, PORT_MONITORING);
             break;
         } else if (request.get_type() == MessageType::SleepServiceCommand) {
-            std::string s_cmd = request.pop();
-            if (!s_cmd.empty()) {
-                int cmd = stoi(s_cmd);
-                switch(cmd) {
-                    case CommandType::Sleep:
-                        h->switch_state(HostState::Asleep);
-                        break;
-                    case CommandType::Wakeup:
-                        h->switch_state(HostState::Awaken);
-                        break;
-                    default:
-                        break;
-                }
-            }
+            //
         } else if (request.get_type() == MessageType::SleepServiceMonitoring) {
             std::string manager_mac = request.pop();
             std::string manager_name = request.pop();

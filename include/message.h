@@ -22,7 +22,7 @@ enum MessageType {
     SleepServiceMonitoring = 1,
     SleepServiceExit = 2,
     SleepServiceCommand = 3,
-    Error = 65535
+    Error = 65488
 };
 
 enum CommandType {

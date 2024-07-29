@@ -220,12 +220,13 @@ void *Manager::monitoring(void *ctx) {
 
             if (response.get_type() == MessageType::Error) {
                 host.state = HostState::Asleep;
+                host.connected = false;
+                close(host.sockfd);
             } else if (response.get_type() == MessageType::SleepServiceExit) {
                 // Handle host exit
                 remove.push_back(*it);
             } else {
-                std::string state = response.pop();
-                host.state = state_from_string(state);
+                host.state = HostState::Awaken;
             }
         }
 

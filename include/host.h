@@ -31,6 +31,7 @@ private:
     static void* input(void *ctx);
 
     void switch_state(HostState new_state);
+    void create_monitoring_socket();
 
     int state = HostState::Discovery;
     int prev_state = HostState::Exit;
@@ -52,6 +53,7 @@ private:
     const int sleep_output = 500 * 1000;
     const int sleep_input = 25 * 1000;
     const int input_timeout = 25; /* 15 ms */
+    const int tcp_timeout = 2; /* 2 s */
 };
 
 HostState state_from_string(std::string state);
