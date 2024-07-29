@@ -118,9 +118,9 @@ Packet rec_packet(int sockfd) {
 Packet rec_packet_tcp(int sockfd) {
     char buffer[BUFFER_SIZE] = {};
 
-    if (read(sockfd, buffer, BUFFER_SIZE) < 0)
+    if (read(sockfd, buffer, BUFFER_SIZE) < 0) {
         return Packet(MessageType::Error, 0, 0);
-    else {
+    } else {
         Packet p = Packet(buffer);
         return p;
     }

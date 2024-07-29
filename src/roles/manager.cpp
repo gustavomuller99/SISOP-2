@@ -184,6 +184,12 @@ void *Manager::monitoring(void *ctx) {
                     continue;
                 }
 
+                if (setsockopt (sockfd, SOL_SOCKET, SO_SNDTIMEO, (struct timeval *) &tv, sizeof(struct timeval)) < 0) {
+                    perror("Manager (Monitoring): Error setting timeout");
+                    close(sockfd);
+                    continue;
+                }
+
                 struct sockaddr_in guest_addr;
                 memset(&guest_addr, 0, sizeof(guest_addr));
                 guest_addr.sin_family = AF_INET;
