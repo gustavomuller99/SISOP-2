@@ -126,6 +126,7 @@ Packet rec_packet_tcp(int sockfd) {
             return Packet(MessageType::Error, 0, 0);
         } else {
             perror("Manager (Monitoring): Error reading from socket");
+            return Packet(MessageType::Error, 0, 0);
         }
         return Packet(MessageType::Error, 0, 0);
     } else if (n == 0) {
