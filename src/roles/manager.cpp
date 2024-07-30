@@ -197,7 +197,6 @@ void *Manager::monitoring(void *ctx) {
                 inet_aton(host.ip.c_str(), &guest_addr.sin_addr);
 
                 if (connect(sockfd, (struct sockaddr *) &guest_addr, sizeof(guest_addr)) < 0) {
-                    perror("Manager (Monitoring): Error connecting to host");
                     close(sockfd);
                     continue;
                 }

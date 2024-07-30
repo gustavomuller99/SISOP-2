@@ -262,7 +262,7 @@ void *Host::input(void *ctx) {
             }
             in.clear();
             wprintw(input, "> ");
-            wmove(input, 0, 3);
+            wmove(input, 0, 2);
         } else if (ch >= 0) {
             in.push_back(ch);
         }
