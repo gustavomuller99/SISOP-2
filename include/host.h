@@ -29,6 +29,9 @@ private:
     static void* monitoring(void *ctx);
     static void* interface(void *ctx);
     static void* input(void *ctx);
+    static void* election(void *ctx);
+
+    bool manager_out;
 
     void switch_state(HostState new_state);
     void create_monitoring_socket();
@@ -45,6 +48,7 @@ private:
     pthread_t t_monitoring{};
     pthread_t t_interface{};
     pthread_t t_input{};
+    pthread_t t_election{};
 
     pthread_mutex_t mutex_change_state = PTHREAD_MUTEX_INITIALIZER;
     pthread_mutex_t mutex_ncurses = PTHREAD_MUTEX_INITIALIZER;
@@ -54,6 +58,7 @@ private:
     const int sleep_input = 25 * 1000;
     const int input_timeout = 25; /* 15 ms */
     const int tcp_timeout = 2; /* 2 s */
+    const int election_timeout = 500 * 1000;
 };
 
 HostState state_from_string(std::string state);
