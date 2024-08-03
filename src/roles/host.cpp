@@ -11,10 +11,12 @@ void Host::init() {
     pthread_create(&this->t_monitoring, NULL, Host::monitoring, this);
     pthread_create(&this->t_interface, NULL, Host::interface, this);
     pthread_create(&this->t_input, NULL, Host::input, this);
+    pthread_create(&this->t_election, NULL, Host::election, this);
 
     pthread_join(this->t_discovery, NULL);
     pthread_join(this->t_interface, NULL);
     pthread_join(this->t_input, NULL);
+    pthread_join(this->t_election, NULL);
 
     if (this->prev_state == HostState::Discovery) {
         pthread_cancel(this->t_monitoring);
@@ -185,15 +187,17 @@ void *Host::monitoring(void *ctx) {
         // timed out == returned from suspend
         if (request.get_type() == MessageType::Error) {
             h->create_monitoring_socket();
-        } 
+            h->manager_out = true;
+        }
         // answers only the host current state OR exits
         else if (h->state == HostState::Exit) {
             Packet response = Packet(MessageType::SleepServiceExit, 0, 0);
             send_tcp(response, h->sck_monitoring, PORT_MONITORING);
             break;
-        } else if (request.get_type() == MessageType::SleepServiceCommand) {
-            //
-        } else if (request.get_type() == MessageType::SleepServiceMonitoring) {
+        } 
+        
+        else if (request.get_type() == MessageType::SleepServiceMonitoring) {
+            h->manager_out = false;
             std::string manager_mac = request.pop();
             std::string manager_name = request.pop();
 
@@ -274,6 +278,16 @@ void *Host::input(void *ctx) {
     pthread_mutex_lock(&h->mutex_ncurses);
     destroy_win(input);
     pthread_mutex_unlock(&h->mutex_ncurses);
+
+    return 0;
+}
+
+void *Host::election(void *ctx) {
+    Host *h = ((Host *) ctx);
+
+    while(h->manager_out){
+        usleep(h->election_timeout);
+    }
 
     return 0;
 }

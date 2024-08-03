@@ -9,14 +9,12 @@ void Manager::init() {
 
     pthread_create(&this->t_discovery, NULL, Manager::discovery, this);
     pthread_create(&this->t_monitoring, NULL, Manager::monitoring, this);
-    pthread_create(&this->t_management, NULL, Manager::management, this);
     pthread_create(&this->t_command, NULL, Manager::command, this);
     pthread_create(&this->t_interface, NULL, Manager::interface, this);
     pthread_create(&this->t_input, NULL, Manager::input, this);
 
     pthread_join(this->t_discovery, NULL);
     pthread_join(this->t_monitoring, NULL);
-    pthread_join(this->t_management, NULL);
     pthread_join(this->t_command, NULL);
     pthread_join(this->t_interface, NULL);
     pthread_join(this->t_input, NULL);
@@ -29,7 +27,6 @@ void Manager::init() {
 void Manager::exit_handler(int sn, siginfo_t* t, void* ctx) {
     pthread_cancel(this->t_discovery);
     pthread_cancel(this->t_monitoring);
-    pthread_cancel(this->t_management);
     pthread_cancel(this->t_command);
     pthread_cancel(this->t_interface);
     pthread_cancel(this->t_input);
@@ -238,60 +235,6 @@ void *Manager::monitoring(void *ctx) {
         usleep(m->sleep_monitoring);
     }
     return 0;
-}
-
-void *Manager::management(void *ctx) {
-    return 0;
-//    Manager *m = (Manager *)ctx;
-//
-//    int trueflag = 1;
-//
-//    if ((m->sck_management = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-//        printf("Manager (Management): ERROR opening socket\n");
-//        exit(EXIT_FAILURE);
-//    }
-//
-//    if (setsockopt(m->sck_management, SOL_SOCKET, SO_REUSEADDR, &trueflag, sizeof(trueflag)) < 0) {
-//        printf("Manager (Management): ERROR setting socket options\n");
-//        exit(EXIT_FAILURE);
-//    }
-//
-//    struct sockaddr_in manager_addr;
-//    struct sockaddr_in guest_addr;
-//    socklen_t addr_len = sizeof(struct sockaddr_in);
-//
-//    memset(&guest_addr, 0, sizeof(guest_addr));
-//    guest_addr.sin_family = AF_INET;
-//    guest_addr.sin_port = htons(PORT_MANAGEMENT);
-//    guest_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-//
-//    if (bind(m->sck_management, (struct sockaddr*) &guest_addr, addr_len) < 0){
-//        printf("Manager (Management): ERROR binding\n");
-//        exit(EXIT_FAILURE);
-//    }
-//
-//    listen(m->sck_management, 5);
-//
-//    while (1) {
-//        int client_sock;
-//        if ((client_sock = accept(m->sck_management, (struct sockaddr *) &manager_addr, &addr_len)) < 0) {
-//            perror("Manager (Management): ERROR on accept");
-//            exit(EXIT_FAILURE);
-//        }
-//
-//        // NOT FOR THIS PART OF THE PROJECT
-//        // Handle management requests from clients (for example, list hosts and their states)
-//        // Example: Send current host states to client
-//        /*for (auto& host : m->hosts) {
-//            std::string status_str = (host.state == HostState::Awaken) ? "Awake" : "Asleep";
-//            std::string message = host.name + " is currently " + status_str + "\n";
-//            write(client_sock, message.c_str(), message.length());
-//        }*/
-//
-//        close(client_sock);
-//    }
-//
-//    close(m->sck_management);
 }
 
 void *Manager::command(void *ctx) {
