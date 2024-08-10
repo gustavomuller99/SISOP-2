@@ -11,12 +11,10 @@ void Host::init() {
     pthread_create(&this->t_monitoring, NULL, Host::monitoring, this);
     pthread_create(&this->t_interface, NULL, Host::interface, this);
     pthread_create(&this->t_input, NULL, Host::input, this);
-    pthread_create(&this->t_election, NULL, Host::election, this);
 
     pthread_join(this->t_discovery, NULL);
     pthread_join(this->t_interface, NULL);
     pthread_join(this->t_input, NULL);
-    pthread_join(this->t_election, NULL);
 
     if (this->prev_state == HostState::Discovery) {
         pthread_cancel(this->t_monitoring);
@@ -187,7 +185,7 @@ void *Host::monitoring(void *ctx) {
         // timed out == returned from suspend
         if (request.get_type() == MessageType::Error) {
             h->create_monitoring_socket();
-            h->manager_out = true;
+            h->election();
         }
         // answers only the host current state OR exits
         else if (h->state == HostState::Exit) {
@@ -197,7 +195,6 @@ void *Host::monitoring(void *ctx) {
         } 
         
         else if (request.get_type() == MessageType::SleepServiceMonitoring) {
-            h->manager_out = false;
             std::string manager_mac = request.pop();
             std::string manager_name = request.pop();
 
@@ -282,14 +279,51 @@ void *Host::input(void *ctx) {
     return 0;
 }
 
-void *Host::election(void *ctx) {
+void *Host::election() {
     Host *h = ((Host *) ctx);
 
-    while(h->manager_out){
-        usleep(h->election_timeout);
-    }
+    int trueflag = 1;
+    struct sockaddr_in addr;
 
-    return 0;
+    if ((h->sck_election = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
+        exit(EXIT_FAILURE);
+
+    struct timeval timeout;
+    timeout.tv_sec = 0;
+    timeout.tv_usec = 5000;
+    if (setsockopt(h->sck_election, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) < 0)
+        exit(EXIT_FAILURE);
+    
+    memset(&addr, 0, sizeof addr);
+
+    addr.sin_family = AF_INET;
+    addr.sin_port = (in_port_t) htons(PORT_ELECTION);
+    addr.sin_addr.s_addr = INADDR_ANY;
+
+    if (bind(h->sck_election, (struct sockaddr *) &addr, sizeof addr) < 0)
+        exit(EXIT_FAILURE);
+
+    Packet request = Packet(MessageType::SleepServiceElection, 0, 0);
+
+    while(1) {
+        for (auto it = h->hosts.begin(); it != h->hosts.end(); it++) {
+            if(stoi(it.ip) > stoi(h.ip)) { // if ip is bigger than current, sends election message
+                addr.sin_port = htons(PORT_ELECTION_SERVICE);
+                inet_aton(it->c_str(), &addr.sin_addr);  
+                socklen_t len = sizeof(addr);
+                char response[BUFFER_SIZE] = {};
+                
+                if (sendto(h->sck_election, request, sizeof(request), 0,(struct sockaddr *) &addr, len) < 0)
+                    exit(EXIT_FAILURE);
+
+                if (recvfrom(h->sck_election, response, sizeof(request), 0,(struct sockaddr *) &addr, &len) >= 0) {
+                    if (response == MessageType::SleepServiceAnswer) {
+                        break;
+                    }
+                }
+            }
+        }
+    }
 }
 
 /* utils */
