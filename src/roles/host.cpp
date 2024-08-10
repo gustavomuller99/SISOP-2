@@ -279,8 +279,8 @@ void *Host::input(void *ctx) {
     return 0;
 }
 
-void *Host::election() {
-    Host *h = ((Host *) ctx);
+void Host::election() {
+    Host *h = ((Host *) this);
 
     int trueflag = 1;
     struct sockaddr_in addr;
@@ -306,23 +306,24 @@ void *Host::election() {
     Packet request = Packet(MessageType::SleepServiceElection, 0, 0);
 
     while(1) {
-        for (auto it = h->hosts.begin(); it != h->hosts.end(); it++) {
-            if(stoi(it.ip) > stoi(h.ip)) { // if ip is bigger than current, sends election message
-                addr.sin_port = htons(PORT_ELECTION_SERVICE);
-                inet_aton(it->c_str(), &addr.sin_addr);  
-                socklen_t len = sizeof(addr);
-                char response[BUFFER_SIZE] = {};
+        break;
+        // for (auto it = h->hosts.begin(); it != h->hosts.end(); it++) {
+        //     if(stoi(it.ip) > stoi(h.ip)) { // if ip is bigger than current, sends election message
+        //         addr.sin_port = htons(PORT_ELECTION_SERVICE);
+        //         inet_aton(it->c_str(), &addr.sin_addr);  
+        //         socklen_t len = sizeof(addr);
+        //         char response[BUFFER_SIZE] = {};
                 
-                if (sendto(h->sck_election, request, sizeof(request), 0,(struct sockaddr *) &addr, len) < 0)
-                    exit(EXIT_FAILURE);
+        //         if (sendto(h->sck_election, request, sizeof(request), 0,(struct sockaddr *) &addr, len) < 0)
+        //             exit(EXIT_FAILURE);
 
-                if (recvfrom(h->sck_election, response, sizeof(request), 0,(struct sockaddr *) &addr, &len) >= 0) {
-                    if (response == MessageType::SleepServiceAnswer) {
-                        break;
-                    }
-                }
-            }
-        }
+        //         if (recvfrom(h->sck_election, response, sizeof(request), 0,(struct sockaddr *) &addr, &len) >= 0) {
+        //             if (response == MessageType::SleepServiceAnswer) {
+        //                 break;
+        //             }
+        //         }
+        //     }
+        // }
     }
 }
 
