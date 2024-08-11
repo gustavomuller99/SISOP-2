@@ -6,15 +6,6 @@
 #include <iostream>
 #include <host.h>
 
-struct KnownHost {
-    std::string ip;
-    std::string mac;
-    std::string name;
-    HostState state;
-    bool connected; // track host socket connected
-    int sockfd; // host socket
-};
-
 class Manager {
 public:
     void init();
@@ -30,10 +21,10 @@ public:
 private:
     static void* discovery(void *ctx);
     static void* monitoring(void *ctx);
-    static void* management(void *ctx);
     static void* command(void *ctx);
     static void* interface(void *ctx);
     static void* input(void *ctx);
+    static void* update_rm(void *ctx);
 
     std::pair<int, std::string> check_input(std::string input);
     void send_wake_on_lan_packet(std::string mac_address);
@@ -46,17 +37,18 @@ private:
 
     pthread_t t_discovery{};
     pthread_t t_monitoring{};
-    pthread_t t_management{};
     pthread_t t_command{};
     pthread_t t_interface{};
     pthread_t t_input{};
-
+    pthread_t t_update_rm{};
+ 
     pthread_mutex_t hosts_mutex = PTHREAD_MUTEX_INITIALIZER;
     pthread_mutex_t mutex_ncurses = PTHREAD_MUTEX_INITIALIZER;
 
     const int sleep_monitoring = 500 * 1000; /* 500 ms */
     const int sleep_command = 500 * 1000;
     const int sleep_output = 500 * 1000;
+    const int sleep_update = 500 * 1000;
     const int sleep_input = 25 * 1000;
     const int input_timeout = 25; /* 25 ms */
     const int tcp_timeout = 250 * 1000;

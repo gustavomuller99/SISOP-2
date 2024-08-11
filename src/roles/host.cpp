@@ -203,6 +203,19 @@ void *Host::monitoring(void *ctx) {
             Packet response = Packet(MessageType::SleepServiceMonitoring, 0, 0);
             response.push(std::to_string(h->state));
             send_tcp(response, h->sck_monitoring, PORT_MONITORING);
+        } else if (request.get_type() == MessageType::SleepServiecUpdateRM) {
+            pthread_mutex_lock(&h->mutex_hosts_replica);
+
+            h->hosts_replica.clear();
+            std::string name;
+            while ((name = request.pop()) != "") {
+                std::string mac = request.pop();
+                std::string ip = request.pop();
+                HostState state = state_from_string(request.pop());
+                h->hosts_replica.push_back(KnownHost {ip, mac, name, state, false});
+            }
+
+            pthread_mutex_unlock(&h->mutex_hosts_replica);
         }
     }
 
@@ -214,17 +227,57 @@ void *Host::interface(void *ctx) {
     Host *h = ((Host *) ctx);
 
     WINDOW *output;
-    int start_x = 0, start_y = 2, width = 200, height = 4;
+    int start_x = 0, start_y = 2, width = 200, height = 50;
     pthread_mutex_lock(&h->mutex_ncurses);
     output = create_newwin(height, width, start_y, start_x);
     pthread_mutex_unlock(&h->mutex_ncurses);
 
     while (h->state != HostState::Exit) {
+        pthread_mutex_lock(&h->mutex_hosts_replica);
+        std::vector<KnownHost> hosts_replica_c = h->hosts_replica; /* copy of hosts replica for printing */
+        pthread_mutex_unlock(&h->mutex_hosts_replica);
+
         pthread_mutex_lock(&h->mutex_ncurses);
         wclear(output);
+        
         wprintw(output, "Manager Info: (IP) %s (MAC) %s (NAME) %s\n", h->m_info.ip.data(), h->m_info.mac.data(), h->m_info.name.data());
         wprintw(output, "Current host state: %s\n", string_from_state(h->state).data());
-        wprintw(output, "Press EXIT to quit");
+        wprintw(output, "Press EXIT to quit\n");
+
+        wprintw(output, "Replica List:\n");
+
+        wmove(output, 4, 0);
+        wprintw(output, "Hostname");
+
+        wmove(output, 4, 17);
+        wprintw(output, "Endereço IP");
+
+        wmove(output, 4, 37);
+        wprintw(output, "Endereço MAC");
+
+        wmove(output, 4, 58);
+        wprintw(output, "Status");
+
+        wmove(output, 5, 0);
+        for (int i = 0; i < 64; ++i) {
+            wprintw(output, "-");
+        }
+
+        for (long unsigned int i = 0; i < hosts_replica_c.size(); ++i) {
+            auto host = hosts_replica_c[i];
+            wmove(output, i + 6, 0);
+            wprintw(output, host.name.c_str());
+
+            wmove(output, i + 6, 17);
+            wprintw(output, host.ip.c_str());
+
+            wmove(output, i + 6, 37);
+            wprintw(output, host.mac.c_str());
+
+            wmove(output, i + 6, 58);
+            wprintw(output, string_from_state(host.state).c_str());
+        }
+
         wrefresh(output);
         pthread_mutex_unlock(&h->mutex_ncurses);
 

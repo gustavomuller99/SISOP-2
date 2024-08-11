@@ -22,6 +22,7 @@ enum MessageType {
     SleepServiceMonitoring = 1,
     SleepServiceExit = 2,
     SleepServiceCommand = 3,
+    SleepServiecUpdateRM = 4,
     Error = 65488
 };
 

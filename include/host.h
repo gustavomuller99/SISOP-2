@@ -17,6 +17,15 @@ struct ManagerInfo {
     std::string ip = "", mac = "", name = "";
 };
 
+struct KnownHost {
+    std::string ip;
+    std::string mac;
+    std::string name;
+    HostState state;
+    bool connected; // track host socket connected
+    int sockfd; // host socket
+};
+
 class Host {
 public:
     Host() = default;
@@ -40,6 +49,7 @@ private:
     int sck_monitoring;
 
     ManagerInfo m_info = {"-1", "-1", "-1"};
+    std::vector<KnownHost> hosts_replica; // list of known hosts sent by the manager
 
     pthread_t t_discovery{};
     pthread_t t_monitoring{};
@@ -47,6 +57,7 @@ private:
     pthread_t t_input{};
 
     pthread_mutex_t mutex_change_state = PTHREAD_MUTEX_INITIALIZER;
+    pthread_mutex_t mutex_hosts_replica = PTHREAD_MUTEX_INITIALIZER;
     pthread_mutex_t mutex_ncurses = PTHREAD_MUTEX_INITIALIZER;
 
     const int sleep_discovery = 500 * 1000; /* 500 ms */
