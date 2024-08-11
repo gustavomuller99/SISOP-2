@@ -30,6 +30,7 @@ void Manager::exit_handler(int sn, siginfo_t* t, void* ctx) {
     pthread_cancel(this->t_discovery);
     pthread_cancel(this->t_monitoring);
     pthread_cancel(this->t_command);
+    pthread_cancel(this->t_update_rm);
     pthread_cancel(this->t_interface);
     pthread_cancel(this->t_input);
     close(this->sck_discovery);

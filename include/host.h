@@ -49,6 +49,7 @@ private:
     int sck_monitoring;
 
     ManagerInfo m_info = {"-1", "-1", "-1"};
+    bool manager_up = true;
     std::vector<KnownHost> hosts_replica; // list of known hosts sent by the manager
 
     pthread_t t_discovery{};
@@ -61,10 +62,11 @@ private:
     pthread_mutex_t mutex_ncurses = PTHREAD_MUTEX_INITIALIZER;
 
     const int sleep_discovery = 500 * 1000; /* 500 ms */
+    const int sleep_monitoring = 50 * 1000;
     const int sleep_output = 500 * 1000;
     const int sleep_input = 25 * 1000;
     const int input_timeout = 25; /* 15 ms */
-    const int tcp_timeout = 2; /* 2 s */
+    const int tcp_timeout = 5; /* 5 s */
 };
 
 HostState state_from_string(std::string state);

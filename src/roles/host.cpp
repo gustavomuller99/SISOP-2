@@ -59,6 +59,15 @@ void Host::create_monitoring_socket() {
         exit(EXIT_FAILURE);
     }
 
+    timeval tv;
+    tv.tv_sec = tcp_timeout;
+    tv.tv_usec = 0;
+
+    if (setsockopt (sck_monitoring, SOL_SOCKET, SO_RCVTIMEO, (struct timeval *) &tv, sizeof(struct timeval)) < 0) {
+        perror("Manager (Monitoring): Error setting timeout");
+        close(sck_monitoring);
+    }
+
     struct sockaddr_in manager_addr;
     struct sockaddr_in guest_addr;
     socklen_t addr_len = sizeof(struct sockaddr_in);
@@ -76,19 +85,11 @@ void Host::create_monitoring_socket() {
     listen(sck_monitoring, 5);
 
     if ((sck_monitoring = accept(sck_monitoring, (struct sockaddr *) &manager_addr, &addr_len)) < 0) {
-        perror("Host (Monitoring): ERROR on accept");
-        exit(EXIT_FAILURE);
+        manager_up = false;
+        return;
     }
 
-    timeval tv;
-    tv.tv_sec = tcp_timeout;
-    tv.tv_usec = 0;
-
-    if (setsockopt (sck_monitoring, SOL_SOCKET, SO_RCVTIMEO, (struct timeval *) &tv, sizeof(struct timeval)) < 0) {
-        perror("Manager (Monitoring): Error setting timeout");
-        close(sck_monitoring);
-    }
-
+    manager_up = true;
     m_info.ip = inet_ntoa(manager_addr.sin_addr);
 }
 
@@ -182,18 +183,20 @@ void *Host::monitoring(void *ctx) {
             h->switch_state(HostState::Awaken);
         }
 
-        // timed out == returned from suspend
+        // timed out (suspend OR manager quit)
         if (request.get_type() == MessageType::Error) {
-            h->create_monitoring_socket();
+            h->create_monitoring_socket(); // sets manager_up accordingly
         } 
         // answers only the host current state OR exits
         else if (h->state == HostState::Exit) {
             Packet response = Packet(MessageType::SleepServiceExit, 0, 0);
             send_tcp(response, h->sck_monitoring, PORT_MONITORING);
             break;
-        } else if (request.get_type() == MessageType::SleepServiceCommand) {
+        } 
+        else if (request.get_type() == MessageType::SleepServiceCommand) {
             //
-        } else if (request.get_type() == MessageType::SleepServiceMonitoring) {
+        } 
+        else if (request.get_type() == MessageType::SleepServiceMonitoring) {
             std::string manager_mac = request.pop();
             std::string manager_name = request.pop();
 
@@ -203,7 +206,8 @@ void *Host::monitoring(void *ctx) {
             Packet response = Packet(MessageType::SleepServiceMonitoring, 0, 0);
             response.push(std::to_string(h->state));
             send_tcp(response, h->sck_monitoring, PORT_MONITORING);
-        } else if (request.get_type() == MessageType::SleepServiecUpdateRM) {
+        } 
+        else if (request.get_type() == MessageType::SleepServiecUpdateRM) {
             pthread_mutex_lock(&h->mutex_hosts_replica);
 
             h->hosts_replica.clear();
@@ -217,6 +221,8 @@ void *Host::monitoring(void *ctx) {
 
             pthread_mutex_unlock(&h->mutex_hosts_replica);
         }
+
+        usleep(h->sleep_monitoring);
     }
 
     close(h->sck_monitoring);
@@ -242,39 +248,40 @@ void *Host::interface(void *ctx) {
         
         wprintw(output, "Manager Info: (IP) %s (MAC) %s (NAME) %s\n", h->m_info.ip.data(), h->m_info.mac.data(), h->m_info.name.data());
         wprintw(output, "Current host state: %s\n", string_from_state(h->state).data());
+        wprintw(output, "Current manager state: %s\n", h->manager_up ? "UP" : "DOWN");
         wprintw(output, "Press EXIT to quit\n");
 
         wprintw(output, "Replica List:\n");
 
-        wmove(output, 4, 0);
+        wmove(output, 5, 0);
         wprintw(output, "Hostname");
 
-        wmove(output, 4, 17);
+        wmove(output, 5, 17);
         wprintw(output, "Endereço IP");
 
-        wmove(output, 4, 37);
+        wmove(output, 5, 37);
         wprintw(output, "Endereço MAC");
 
-        wmove(output, 4, 58);
+        wmove(output, 5, 58);
         wprintw(output, "Status");
 
-        wmove(output, 5, 0);
+        wmove(output, 6, 0);
         for (int i = 0; i < 64; ++i) {
             wprintw(output, "-");
         }
 
         for (long unsigned int i = 0; i < hosts_replica_c.size(); ++i) {
             auto host = hosts_replica_c[i];
-            wmove(output, i + 6, 0);
+            wmove(output, i + 7, 0);
             wprintw(output, host.name.c_str());
 
-            wmove(output, i + 6, 17);
+            wmove(output, i + 7, 17);
             wprintw(output, host.ip.c_str());
 
-            wmove(output, i + 6, 37);
+            wmove(output, i + 7, 37);
             wprintw(output, host.mac.c_str());
 
-            wmove(output, i + 6, 58);
+            wmove(output, i + 7, 58);
             wprintw(output, string_from_state(host.state).c_str());
         }
 
@@ -334,8 +341,8 @@ void *Host::input(void *ctx) {
 /* utils */
 
 HostState state_from_string(std::string state) {
-    if (state == "1") return HostState::Discovery;
-    if (state == "2") return HostState::Asleep;
+    if (state == "Discovery") return HostState::Discovery;
+    if (state == "Asleep") return HostState::Asleep;
     return HostState::Awaken;
 }
 
