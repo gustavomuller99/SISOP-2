@@ -9,10 +9,16 @@ void Host::init() {
 
     pthread_create(&this->t_discovery, NULL, Host::discovery, this);
     pthread_create(&this->t_monitoring, NULL, Host::monitoring, this);
+    pthread_create(&this->t_check_manager, NULL, Host::check_manager, this);
+    pthread_create(&this->t_listen_election, NULL, Host::listen_election, this);
+    pthread_create(&this->t_run_election, NULL, Host::run_election, this);
     pthread_create(&this->t_interface, NULL, Host::interface, this);
     pthread_create(&this->t_input, NULL, Host::input, this);
 
     pthread_join(this->t_discovery, NULL);
+    pthread_join(this->t_check_manager, NULL);
+    pthread_join(this->t_listen_election, NULL);
+    pthread_join(this->t_run_election, NULL);
     pthread_join(this->t_interface, NULL);
     pthread_join(this->t_input, NULL);
 
@@ -24,6 +30,12 @@ void Host::init() {
     pthread_mutex_lock(&this->mutex_ncurses);
     endwin();
     pthread_mutex_unlock(&this->mutex_ncurses);
+
+    b_should_exit_election = true;
+}
+
+void Host::exit_handler(int sn, siginfo_t* t, void* ctx) {
+    this->switch_state(HostState::Exit);
 }
 
 void Host::switch_state(HostState new_state) {
@@ -35,8 +47,10 @@ void Host::switch_state(HostState new_state) {
     pthread_mutex_unlock(&this->mutex_change_state);
 }
 
-void Host::exit_handler(int sn, siginfo_t* t, void* ctx) {
-    this->switch_state(HostState::Exit);
+void Host::update_election_answer(bool value) {
+    pthread_mutex_lock(&this->mutex_answer);
+    b_election_answer = value;
+    pthread_mutex_unlock(&this->mutex_answer);
 }
 
 void Host::create_monitoring_socket() {
@@ -91,6 +105,16 @@ void Host::create_monitoring_socket() {
 
     manager_up = true;
     m_info.ip = inet_ntoa(manager_addr.sin_addr);
+}
+
+std::vector<KnownHost> Host::get_hosts() {
+    std::vector<KnownHost> copy;
+
+    pthread_mutex_lock(&mutex_hosts_replica);
+    for (KnownHost h: this->hosts_replica) copy.push_back(h);
+    pthread_mutex_unlock(&mutex_hosts_replica);
+
+    return copy;
 }
 
 void *Host::discovery(void *ctx) {
@@ -173,6 +197,7 @@ void *Host::monitoring(void *ctx) {
     }
 
     h->m_info.ip = inet_ntoa(manager_addr.sin_addr);
+    h->manager_up = true;
     
     /* connection established */
     while (1) {
@@ -181,6 +206,11 @@ void *Host::monitoring(void *ctx) {
         // if first discovered, switch state
         if (h->state == HostState::Discovery) {
             h->switch_state(HostState::Awaken);
+        }
+
+        // skip if running election
+        if (h->state == HostState::RunElection) {
+            continue;
         }
 
         // timed out (suspend OR manager quit)
@@ -229,6 +259,130 @@ void *Host::monitoring(void *ctx) {
     return 0;
 }
 
+void *Host::check_manager(void *ctx) {
+    Host *h = ((Host *) ctx);
+
+    /* gives time to discovery subservice */
+    usleep(h->sleep_check_manager); 
+
+    while (h->state != HostState::Exit) {
+        if (!h->manager_up && h->state != HostState::RunElection) {
+            h->switch_state(HostState::RunElection);
+        }
+
+        usleep(h->sleep_check_manager);
+    }
+
+    return 0;
+}
+
+void *Host::listen_election(void *ctx) {
+    Host *h = ((Host *) ctx);
+
+    int trueflag = 1;
+
+    if ((h->sck_listen = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+        printf("Election (Listen): ERROR opening socket\n");
+        exit(EXIT_FAILURE); 
+    }
+
+    if (setsockopt(h->sck_listen, SOL_SOCKET, SO_REUSEADDR, &trueflag, sizeof(trueflag)) < 0) {
+        printf("Election (Listen): ERROR reusing addr");
+        exit(EXIT_FAILURE);
+    }
+
+    if (setsockopt(h->sck_listen, SOL_SOCKET, SO_REUSEPORT, &trueflag, sizeof(trueflag)) < 0) {
+        printf("Election (Listen): ERROR reusing port");
+        exit(EXIT_FAILURE);
+    }
+
+    struct sockaddr_in manager_addr;
+    struct sockaddr_in guest_addr;
+    socklen_t addr_len = sizeof(struct sockaddr_in);
+
+    memset(&guest_addr, 0, sizeof(guest_addr));
+    guest_addr.sin_family = AF_INET;
+    guest_addr.sin_port = htons(PORT_ELECTION);
+    guest_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    
+    if (bind(h->sck_listen, (struct sockaddr*) &guest_addr, addr_len) < 0){
+        printf("Election (Listen): ERROR binding\n");
+        exit(EXIT_FAILURE);
+    }
+
+    timeval tv;
+    tv.tv_sec = h->tcp_timeout;
+    tv.tv_usec = 0;
+
+    if (setsockopt (h->sck_listen, SOL_SOCKET, SO_RCVTIMEO, (struct timeval *) &tv, sizeof(struct timeval)) < 0) {
+        perror("Election (Listen): Error setting timeout");
+        close(h->sck_listen);
+    }
+
+    while(h->state != HostState::Exit) {
+        /*  listen for message 
+            needs to be able to read from multiple sources */
+        listen(h->sck_listen, 5);
+
+        if ((h->sck_listen = accept(h->sck_listen, (struct sockaddr *) &manager_addr, &addr_len)) < 0) {
+            continue;
+        }
+
+        Packet request = rec_packet_tcp(h->sck_listen);
+
+        if (request.get_type() == MessageType::ElectionServiceAnswer) {
+            h->update_election_answer(true);
+        } else if (request.get_type() == MessageType::ElectionServiceCoordinator) {
+            // process coordinator and switch state to awaken again
+            h->switch_state(HostState::Awaken);
+        } else if (request.get_type() == MessageType::ElectionServiceEletcion) {
+            // sends answer message and starts election process
+            h->switch_state(HostState::RunElection);
+
+            Packet response = Packet(MessageType::ElectionServiceAnswer, 0, 0);
+            send_tcp(response, h->sck_listen, PORT_ELECTION);
+        }
+    }
+
+    close(h->sck_listen);   
+    return 0;
+}
+
+void *Host::run_election(void *ctx) {
+    Host *h = ((Host *) ctx);
+
+    while(h->state != HostState::Exit) {
+        if (h->state == HostState::RunElection) {
+            /*  sends election messages 
+                if there is no higher id, sends coordinator message */
+            bool has_higher_id = false;
+            std::vector<KnownHost> hosts_replica_c = h->get_hosts();
+            
+            for (auto host: hosts_replica_c) {
+                if (host.election_id <= h->election_id) continue;
+                has_higher_id = true; 
+            }
+
+            if (!has_higher_id) {
+                // sends coordinator
+                h->b_should_switch_manager = true;
+            } else {
+                // sleeps and checks if any answer message arrived
+                usleep(h->sleep_answer);
+                if (!h->b_election_answer) {
+                    // sends coordinator
+                    h->b_should_switch_manager = true;
+                }
+                h->update_election_answer(false);
+            }
+        }
+
+        usleep(h->sleep_run_election);
+    }
+
+    return 0;
+}
+
 void *Host::interface(void *ctx) {
     Host *h = ((Host *) ctx);
 
@@ -239,10 +393,6 @@ void *Host::interface(void *ctx) {
     pthread_mutex_unlock(&h->mutex_ncurses);
 
     while (h->state != HostState::Exit) {
-        pthread_mutex_lock(&h->mutex_hosts_replica);
-        std::vector<KnownHost> hosts_replica_c = h->hosts_replica; /* copy of hosts replica for printing */
-        pthread_mutex_unlock(&h->mutex_hosts_replica);
-
         pthread_mutex_lock(&h->mutex_ncurses);
         wclear(output);
         
@@ -270,6 +420,7 @@ void *Host::interface(void *ctx) {
             wprintw(output, "-");
         }
 
+        std::vector<KnownHost> hosts_replica_c = h->get_hosts(); /* copy of hosts replica for printing */
         for (long unsigned int i = 0; i < hosts_replica_c.size(); ++i) {
             auto host = hosts_replica_c[i];
             wmove(output, i + 7, 0);
@@ -343,6 +494,7 @@ void *Host::input(void *ctx) {
 HostState state_from_string(std::string state) {
     if (state == "Discovery") return HostState::Discovery;
     if (state == "Asleep") return HostState::Asleep;
+    if (state == "Run Election") return HostState::RunElection;
     return HostState::Awaken;
 }
 
@@ -354,6 +506,8 @@ std::string string_from_state(int state) {
             return "Asleep";
         case HostState::Awaken:
             return "Awaken";
+        case HostState::RunElection:
+            return "Run Election";
         default:
             return "Unknown";
     }
