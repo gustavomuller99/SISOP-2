@@ -279,6 +279,52 @@ void *Host::input(void *ctx) {
     return 0;
 }
 
+void *Host::election_listener(void *ctx) {
+    Host *h = ((Host *) ctx);
+
+    int trueflag = 1;
+    struct sockaddr_in addr;
+
+    if ((h->sck_election = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
+        exit(EXIT_FAILURE);
+
+    timeval tv;
+    tv.tv_sec = tcp_timeout;
+    tv.tv_usec = 0;
+
+    if (setsockopt(h->sck_election, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) < 0)
+        exit(EXIT_FAILURE);
+
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(PORT_ELECTION);
+    addr.sin_addr.s_addr = INADDR_ANY;
+
+    if (bind(h->sck_election, (struct sockaddr *) &addr, sizeof(addr)) < 0)
+        exit(EXIT_FAILURE);
+
+    while (h->state != HostState::Exit) {
+        char buffer[BUFFER_SIZE] = {};
+        socklen_t len = sizeof(addr);
+
+        int n = recvfrom(h->sck_election, buffer, BUFFER_SIZE, 0, (struct sockaddr *) &addr, &len);
+        if (n > 0) {
+            Packet p = Packet(buffer);
+            if (p.get_type() == MessageType::SleepServiceElection) {
+                std::string host_ip = inet_ntoa(addr.sin_addr);
+                if (host_ip > h->m_info.ip) {
+                    // Send response if IP received is greater than own IP 
+                    Packet response = Packet(MessageType::SleepServiceAnswer, 0, 0);
+                    sendto(h->sck_election, response.to_string().data(), response.size(), 0, (struct sockaddr *) &addr, len);
+                }
+            }
+        }
+    }
+
+    close(h->sck_election);
+    return nullptr;
+}
+
 void Host::election() {
     Host *h = ((Host *) this);
 
