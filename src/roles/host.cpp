@@ -301,19 +301,25 @@ void *Host::listen_election(void *ctx) {
         exit(EXIT_FAILURE);
 
     while(h->state != HostState::Exit) {
-        Packet request = rec_packet_udp(h->sck_listen);
+        char rbuf[BUFFER_SIZE] = {};
+        socklen_t len = sizeof(recv_addr);
 
-        if (request.get_type() == MessageType::ElectionServiceAnswer) {
+        if (recvfrom(h->sck_listen, rbuf, sizeof(rbuf) - 1, 0, (struct sockaddr *) &recv_addr, &len) < 0)
+            continue;
+
+        Packet p = Packet(rbuf);
+        p.src_ip = inet_ntoa(recv_addr.sin_addr);
+
+        if (p.get_type() == MessageType::ElectionServiceAnswer) {
             h->update_election_answer(true);
         }
         
-        else if (request.get_type() == MessageType::ElectionServiceCoordinator) {
+        else if (p.get_type() == MessageType::ElectionServiceCoordinator) {
             // process coordinator and switch state to awaken again
             h->switch_state(HostState::Awaken);
         }
         
-        else if (request.get_type() == MessageType::ElectionServiceElection) {
-            std::cout << "chegamo aq\n";
+        else if (p.get_type() == MessageType::ElectionServiceElection) {
             // sends answer message and starts election process
             h->switch_state(HostState::RunElection);
 
