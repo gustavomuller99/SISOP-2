@@ -43,7 +43,7 @@ void *Election::check(void *ctx) {
         if (e->running_as == RunningType::AsHost) {
             if (e->h->b_should_exit_election) 
                 break;
-            if (e->h->b_should_switch_manager)
+            if (e->h->b_should_become_manager)
                 e->switch_manager();
         } else {
 

@@ -38,7 +38,7 @@ public:
     
     int election_id = 0;
     bool manager_up = false;
-    bool b_should_switch_manager = false;
+    bool b_should_become_manager = false;
     bool b_should_exit_election = false;
     int state = HostState::Discovery;
     int prev_state = HostState::Exit;
@@ -59,6 +59,7 @@ private:
     
     int sck_discovery;
     int sck_monitoring;
+    int sck_election;
     int sck_listen;
 
     bool b_election_answer = false;

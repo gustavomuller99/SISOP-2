@@ -24,7 +24,7 @@ enum MessageType {
     SleepServiceExit = 2,
     SleepServiceCommand = 3,
     SleepServiecUpdateRM = 4,
-    ElectionServiceEletcion = 5,
+    ElectionServiceElection = 5,
     ElectionServiceAnswer = 6,
     ElectionServiceCoordinator = 7,
     Error = 65488
@@ -72,11 +72,11 @@ std::string format_mac_address(const unsigned char* mac);
 std::string get_mac_address();
 
 /* send packet on broadcast using port and socket  */
-void send_broadcast(Packet p, int sockfd, int port);
+void send_udp(Packet p, int sockfd, int port);
 void send_tcp(Packet p, int sockfd, int port, std::string ip = "");
 
 /* waits for packcage and parses into object */
-Packet rec_packet(int sockfd);
+Packet rec_packet_udp(int sockfd);
 Packet rec_packet_tcp(int sockfd);
 
 #endif //_MESSAGE_H

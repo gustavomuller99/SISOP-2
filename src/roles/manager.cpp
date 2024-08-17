@@ -133,7 +133,7 @@ void *Manager::discovery(void *ctx) {
         exit(EXIT_FAILURE);
 
     while (1) {
-        Packet p = rec_packet(m->sck_discovery);
+        Packet p = rec_packet_udp(m->sck_discovery);
 
         // consumes the package
         std::string mac = p.pop();

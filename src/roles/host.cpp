@@ -137,7 +137,7 @@ void *Host::discovery(void *ctx) {
         p.push(hostname);
         p.push(get_mac_address());
 
-        send_broadcast(p, h->sck_discovery, PORT_DISCOVERY);
+        send_udp(p, h->sck_discovery, PORT_DISCOVERY);
 
         usleep(h->sleep_discovery);
     }
@@ -335,7 +335,7 @@ void *Host::listen_election(void *ctx) {
         } else if (request.get_type() == MessageType::ElectionServiceCoordinator) {
             // process coordinator and switch state to awaken again
             h->switch_state(HostState::Awaken);
-        } else if (request.get_type() == MessageType::ElectionServiceEletcion) {
+        } else if (request.get_type() == MessageType::ElectionServiceElection) {
             // sends answer message and starts election process
             h->switch_state(HostState::RunElection);
 
@@ -348,38 +348,152 @@ void *Host::listen_election(void *ctx) {
     return 0;
 }
 
+/*
+void *Host::listen_election(void *ctx) {
+    Host *h = ((Host *) ctx);
+
+    // creating udp server socket file descriptor
+    int trueflag = 1;
+    struct sockaddr_in recv_addr;
+
+    if ((h->sck_listen = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
+        exit(EXIT_FAILURE);
+
+    if (setsockopt(h->sck_listen, SOL_SOCKET, SO_BROADCAST, &trueflag, sizeof trueflag) < 0)
+        exit(EXIT_FAILURE);
+
+    memset(&recv_addr, 0, sizeof recv_addr);
+
+    recv_addr.sin_family = AF_INET;
+    recv_addr.sin_port = (in_port_t) htons(PORT_ELECTION);
+    recv_addr.sin_addr.s_addr = INADDR_ANY;
+
+    if (bind(h->sck_listen, (struct sockaddr *) &recv_addr, sizeof recv_addr) < 0)
+        exit(EXIT_FAILURE);
+
+    while(h->state != HostState::Exit) {
+        Packet request = rec_packet_udp(h->sck_listen);
+
+        if (request.get_type() == MessageType::ElectionServiceAnswer) {
+            h->update_election_answer(true);
+        } else if (request.get_type() == MessageType::ElectionServiceCoordinator) {
+            // process coordinator and switch state to awaken again
+            h->switch_state(HostState::Awaken);
+        } else if (request.get_type() == MessageType::ElectionServiceElection) {
+            // sends answer message and starts election process
+            h->switch_state(HostState::RunElection);
+
+            Packet response = Packet(MessageType::ElectionServiceAnswer, 0, 0);
+            send_udp(response, h->sck_listen, PORT_ELECTION);
+        }
+    }
+
+    close(h->sck_listen);   
+    return 0;
+}
+*/
+
+/*
+void *Host::listen_election(void *ctx) {
+    Host *h = ((Host *) ctx);
+
+    int trueflag = 1;
+
+    if ((h->sck_listen = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
+        printf("Election (Listen): ERROR opening socket\n");
+        exit(EXIT_FAILURE); 
+    }
+
+    struct sockaddr_in host_addr;
+    socklen_t addr_len = sizeof(struct sockaddr_in);
+
+    memset(&host_addr, 0, sizeof(host_addr));
+    host_addr.sin_family = AF_INET;
+    host_addr.sin_port = htons(PORT_ELECTION);
+    host_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    
+    if (bind(h->sck_listen, (struct sockaddr*) &host_addr, addr_len) < 0){
+        printf("Election (Listen): ERROR binding\n");
+        exit(EXIT_FAILURE);
+    }
+
+    while(h->state != HostState::Exit) {
+        Packet request = rec_packet_udp(h->sck_listen);
+
+        if (request.get_type() == MessageType::ElectionServiceAnswer) {
+            h->update_election_answer(true);
+        }
+        
+        else if (request.get_type() == MessageType::ElectionServiceCoordinator) {
+            // process coordinator and switch state to awaken again
+            h->switch_state(HostState::Awaken);
+        }
+        
+        else if (request.get_type() == MessageType::ElectionServiceElection) {
+            // sends answer message and starts election process
+            h->switch_state(HostState::RunElection);
+
+            Packet response = Packet(MessageType::ElectionServiceAnswer, 0, 0);
+            send_udp(response, h->sck_listen, PORT_ELECTION);
+        }
+    }
+
+    close(h->sck_listen);   
+    return 0;
+}
+*/
+
 void *Host::run_election(void *ctx) {
     Host *h = ((Host *) ctx);
 
+    struct sockaddr_in addr;
+
+    if ((h->sck_election = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
+        exit(EXIT_FAILURE);
+
+    struct timeval timeout;
+    timeout.tv_sec = 0;
+    timeout.tv_usec = 5000;
+    if (setsockopt(h->sck_election, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) < 0)
+        exit(EXIT_FAILURE);
+
+    memset(&addr, 0, sizeof addr);
+
+    addr.sin_family = AF_INET;
+    addr.sin_port = (in_port_t) htons(PORT_ELECTION);
+    addr.sin_addr.s_addr = INADDR_ANY;
+
+    if (bind(h->sck_election, (struct sockaddr *) &addr, sizeof addr) < 0)
+        exit(EXIT_FAILURE);
+
+    Packet request = Packet(MessageType::ElectionServiceElection, 0, 0);
+
     while(h->state != HostState::Exit) {
         if (h->state == HostState::RunElection) {
-            /*  sends election messages 
-                if there is no higher id, sends coordinator message */
-            bool has_higher_id = false;
             std::vector<KnownHost> hosts_replica_c = h->get_hosts();
             
             for (auto host: hosts_replica_c) {
-                if (host.election_id <= h->election_id) continue;
-                has_higher_id = true; 
-            }
-
-            if (!has_higher_id) {
-                // sends coordinator
-                h->b_should_switch_manager = true;
-            } else {
-                // sleeps and checks if any answer message arrived
-                usleep(h->sleep_answer);
-                if (!h->b_election_answer) {
-                    // sends coordinator
-                    h->b_should_switch_manager = true;
+                // sends election message
+                if (host.election_id > h->election_id){
+                    send_udp(request, h->sck_election, PORT_ELECTION);
                 }
-                h->update_election_answer(false);
             }
-        }
 
+            // sleeps to wait for a response
+            usleep(h->sleep_answer);
+
+            // checks if message has arrived
+            if (!h->b_election_answer) {
+                // sends coordinator
+                h->b_should_become_manager = true;
+            }
+            h->update_election_answer(false);
+        }
+    
         usleep(h->sleep_run_election);
     }
-
+    
+    close(h->sck_election);
     return 0;
 }
 

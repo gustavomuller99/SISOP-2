@@ -67,7 +67,7 @@ std::string Packet::to_payload() {
 
 /* send/receive funcions */
 
-void send_broadcast(Packet p, int sockfd, int port) {
+void send_udp(Packet p, int sockfd, int port) {
     struct sockaddr_in serv_addr;
     memset(&serv_addr, 0, sizeof(serv_addr));
 
@@ -100,7 +100,7 @@ void send_tcp(Packet p, int sockfd, int port, std::string ip) {
     return;
 }
 
-Packet rec_packet(int sockfd) {
+Packet rec_packet_udp(int sockfd) {
     char rbuf[BUFFER_SIZE] = {};
 
     sockaddr_in rec_addr;
