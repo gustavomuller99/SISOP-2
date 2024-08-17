@@ -280,70 +280,48 @@ void *Host::listen_election(void *ctx) {
     Host *h = ((Host *) ctx);
 
     int trueflag = 1;
+    struct sockaddr_in recv_addr;
 
-    if ((h->sck_listen = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-        printf("Election (Listen): ERROR opening socket\n");
-        exit(EXIT_FAILURE); 
-    }
-
-    if (setsockopt(h->sck_listen, SOL_SOCKET, SO_REUSEADDR, &trueflag, sizeof(trueflag)) < 0) {
-        printf("Election (Listen): ERROR reusing addr");
+    if ((h->sck_listen = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
         exit(EXIT_FAILURE);
-    }
 
-    if (setsockopt(h->sck_listen, SOL_SOCKET, SO_REUSEPORT, &trueflag, sizeof(trueflag)) < 0) {
-        printf("Election (Listen): ERROR reusing port");
+    if (setsockopt(h->sck_listen, SOL_SOCKET, SO_REUSEADDR, &trueflag, sizeof trueflag) < 0)
         exit(EXIT_FAILURE);
-    }
 
-    struct sockaddr_in manager_addr;
-    struct sockaddr_in guest_addr;
-    socklen_t addr_len = sizeof(struct sockaddr_in);
-
-    memset(&guest_addr, 0, sizeof(guest_addr));
-    guest_addr.sin_family = AF_INET;
-    guest_addr.sin_port = htons(PORT_ELECTION);
-    guest_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    
-    if (bind(h->sck_listen, (struct sockaddr*) &guest_addr, addr_len) < 0){
-        printf("Election (Listen): ERROR binding\n");
+    if (setsockopt(h->sck_listen, SOL_SOCKET, SO_REUSEPORT, &trueflag, sizeof(trueflag)) < 0)
         exit(EXIT_FAILURE);
-    }
 
-    timeval tv;
-    tv.tv_sec = h->tcp_timeout;
-    tv.tv_usec = 0;
+    memset(&recv_addr, 0, sizeof recv_addr);
 
-    if (setsockopt (h->sck_listen, SOL_SOCKET, SO_RCVTIMEO, (struct timeval *) &tv, sizeof(struct timeval)) < 0) {
-        perror("Election (Listen): Error setting timeout");
-        close(h->sck_listen);
-    }
+    recv_addr.sin_family = AF_INET;
+    recv_addr.sin_port = (in_port_t) htons(PORT_ELECTION);
+    recv_addr.sin_addr.s_addr = INADDR_ANY;
+
+    if (bind(h->sck_listen, (struct sockaddr *) &recv_addr, sizeof recv_addr) < 0)
+        exit(EXIT_FAILURE);
 
     while(h->state != HostState::Exit) {
-        /*  listen for message 
-            needs to be able to read from multiple sources */
-        listen(h->sck_listen, 5);
-
-        if ((h->sck_listen = accept(h->sck_listen, (struct sockaddr *) &manager_addr, &addr_len)) < 0) {
-            continue;
-        }
-
-        Packet request = rec_packet_tcp(h->sck_listen);
+        Packet request = rec_packet_udp(h->sck_listen);
 
         if (request.get_type() == MessageType::ElectionServiceAnswer) {
             h->update_election_answer(true);
-        } else if (request.get_type() == MessageType::ElectionServiceCoordinator) {
+        }
+        
+        else if (request.get_type() == MessageType::ElectionServiceCoordinator) {
             // process coordinator and switch state to awaken again
             h->switch_state(HostState::Awaken);
-        } else if (request.get_type() == MessageType::ElectionServiceElection) {
+        }
+        
+        else if (request.get_type() == MessageType::ElectionServiceElection) {
+            std::cout << "chegamo aq\n";
             // sends answer message and starts election process
             h->switch_state(HostState::RunElection);
 
             Packet response = Packet(MessageType::ElectionServiceAnswer, 0, 0);
-            send_tcp(response, h->sck_listen, PORT_ELECTION);
+            send_udp(response, h->sck_listen, PORT_ELECTION);
         }
     }
-
+    
     close(h->sck_listen);   
     return 0;
 }
@@ -380,56 +358,6 @@ void *Host::listen_election(void *ctx) {
             // process coordinator and switch state to awaken again
             h->switch_state(HostState::Awaken);
         } else if (request.get_type() == MessageType::ElectionServiceElection) {
-            // sends answer message and starts election process
-            h->switch_state(HostState::RunElection);
-
-            Packet response = Packet(MessageType::ElectionServiceAnswer, 0, 0);
-            send_udp(response, h->sck_listen, PORT_ELECTION);
-        }
-    }
-
-    close(h->sck_listen);   
-    return 0;
-}
-*/
-
-/*
-void *Host::listen_election(void *ctx) {
-    Host *h = ((Host *) ctx);
-
-    int trueflag = 1;
-
-    if ((h->sck_listen = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
-        printf("Election (Listen): ERROR opening socket\n");
-        exit(EXIT_FAILURE); 
-    }
-
-    struct sockaddr_in host_addr;
-    socklen_t addr_len = sizeof(struct sockaddr_in);
-
-    memset(&host_addr, 0, sizeof(host_addr));
-    host_addr.sin_family = AF_INET;
-    host_addr.sin_port = htons(PORT_ELECTION);
-    host_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    
-    if (bind(h->sck_listen, (struct sockaddr*) &host_addr, addr_len) < 0){
-        printf("Election (Listen): ERROR binding\n");
-        exit(EXIT_FAILURE);
-    }
-
-    while(h->state != HostState::Exit) {
-        Packet request = rec_packet_udp(h->sck_listen);
-
-        if (request.get_type() == MessageType::ElectionServiceAnswer) {
-            h->update_election_answer(true);
-        }
-        
-        else if (request.get_type() == MessageType::ElectionServiceCoordinator) {
-            // process coordinator and switch state to awaken again
-            h->switch_state(HostState::Awaken);
-        }
-        
-        else if (request.get_type() == MessageType::ElectionServiceElection) {
             // sends answer message and starts election process
             h->switch_state(HostState::RunElection);
 
