@@ -281,14 +281,9 @@ void *Host::listen_election(void *ctx) {
 
     int trueflag = 1;
     struct sockaddr_in recv_addr;
+    struct sockaddr_in elector_address;
 
     if ((h->sck_listen = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
-        exit(EXIT_FAILURE);
-
-    if (setsockopt(h->sck_listen, SOL_SOCKET, SO_REUSEADDR, &trueflag, sizeof trueflag) < 0)
-        exit(EXIT_FAILURE);
-
-    if (setsockopt(h->sck_listen, SOL_SOCKET, SO_REUSEPORT, &trueflag, sizeof(trueflag)) < 0)
         exit(EXIT_FAILURE);
 
     memset(&recv_addr, 0, sizeof recv_addr);
@@ -297,14 +292,14 @@ void *Host::listen_election(void *ctx) {
     recv_addr.sin_port = (in_port_t) htons(PORT_ELECTION);
     recv_addr.sin_addr.s_addr = INADDR_ANY;
 
-    if (bind(h->sck_listen, (struct sockaddr *) &recv_addr, sizeof recv_addr) < 0)
+    if (bind(h->sck_listen, (struct sockaddr *) &recv_addr, sizeof(struct sockaddr_in)) < 0)
         exit(EXIT_FAILURE);
 
     while(h->state != HostState::Exit) {
         char rbuf[BUFFER_SIZE] = {};
         socklen_t len = sizeof(recv_addr);
 
-        if (recvfrom(h->sck_listen, rbuf, sizeof(rbuf) - 1, 0, (struct sockaddr *) &recv_addr, &len) < 0)
+        if (recvfrom(h->sck_listen, rbuf, sizeof(rbuf) - 1, 0, (struct sockaddr *) &elector_address, &len) < 0)
             continue;
 
         Packet p = Packet(rbuf);
@@ -394,11 +389,6 @@ void *Host::run_election(void *ctx) {
     memset(&addr, 0, sizeof addr);
 
     addr.sin_family = AF_INET;
-    addr.sin_port = (in_port_t) htons(PORT_ELECTION);
-    addr.sin_addr.s_addr = INADDR_ANY;
-
-    if (bind(h->sck_election, (struct sockaddr *) &addr, sizeof addr) < 0)
-        exit(EXIT_FAILURE);
 
     Packet request = Packet(MessageType::ElectionServiceElection, 0, 0);
 
@@ -409,7 +399,16 @@ void *Host::run_election(void *ctx) {
             for (auto host: hosts_replica_c) {
                 // sends election message
                 if (host.election_id > h->election_id){
-                    send_udp(request, h->sck_election, PORT_ELECTION);
+
+                    // sends to PORT ELECTION, Host IP
+                    addr.sin_port = (in_port_t) htons(PORT_ELECTION);
+                    inet_aton(host.ip.c_str(), &addr.sin_addr);
+
+                    std::string str = request.to_payload();
+                    const char* _payload = str.c_str();
+
+                    if (sendto(h->sck_election, _payload, strlen(_payload), MSG_CONFIRM, (const struct sockaddr *) &addr, sizeof(addr)) < 0)
+                        exit(EXIT_FAILURE);
                 }
             }
 
