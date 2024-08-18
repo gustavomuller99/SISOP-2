@@ -43,6 +43,11 @@ void Host::switch_state(HostState new_state) {
     if (this->state != HostState::Exit) {
         this->prev_state = this->state;
         this->state = new_state;
+
+        if (new_state == HostState::Awaken && this->recovered) {
+            this->switch_state(HostState::RunElection);
+            this->recovered = false; // reset the flag
+        }
     }
     pthread_mutex_unlock(&this->mutex_change_state);
 }
@@ -267,7 +272,13 @@ void *Host::check_manager(void *ctx) {
 
     while (h->state != HostState::Exit) {
         if (!h->manager_up && h->state != HostState::RunElection) {
-            h->switch_state(HostState::RunElection);
+            h->switch_state(HostState::RunElection); // Inicia uma nova eleição
+        }
+
+        // if a host has been recovered, run election
+        else if (h->recovered && h->state != HostState::RunElection) {
+            h->switch_state(HostState::RunElection); 
+            h->recovered = false; 
         }
 
         usleep(h->sleep_check_manager);
