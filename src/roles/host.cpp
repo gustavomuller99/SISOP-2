@@ -337,7 +337,6 @@ void *Host::check_manager(void *ctx) {
 void *Host::listen_election(void *ctx) {
     Host *h = ((Host *) ctx);
 
-    int trueflag = 1;
     struct sockaddr_in recv_addr;
     struct sockaddr_in elector_address;
 
@@ -354,6 +353,7 @@ void *Host::listen_election(void *ctx) {
         exit(EXIT_FAILURE);
 
     while(h->state != HostState::Exit) {
+        std::cout<<"BLABLABLA";
         char rbuf[BUFFER_SIZE] = {};
         socklen_t len = sizeof(recv_addr);
 
@@ -371,10 +371,14 @@ void *Host::listen_election(void *ctx) {
         
         else if (p.get_type() == MessageType::ElectionServiceElection) {
             // sends answer message and starts election process
-            h->switch_state(HostState::RunElection);
-
             Packet response = Packet(MessageType::ElectionServiceAnswer, 0, 0);
-            send_udp(response, h->sck_election, PORT_ELECTION);
+
+            std::string str = response.to_payload();
+            const char* _payload = str.c_str();
+
+            sendto(h->sck_election, _payload, strlen(_payload), MSG_CONFIRM, (const struct sockaddr *) &elector_address, len);
+
+            h->switch_state(HostState::RunElection);
         }
     }
     
