@@ -132,6 +132,8 @@ void *Host::discovery(void *ctx) {
     while (h->state == HostState::Discovery) {
         Packet p = Packet(MessageType::SleepServiceDiscovery, 0, 0);
 
+        std::string ip = get_ip();
+        p.push(std::to_string(hash(ip.substr(ip.size() - 3, 3))));
         char hostname[BUFFER_SIZE];
         gethostname(hostname, BUFFER_SIZE);
         p.push(hostname);
@@ -246,7 +248,8 @@ void *Host::monitoring(void *ctx) {
                 std::string mac = request.pop();
                 std::string ip = request.pop();
                 HostState state = state_from_string(request.pop());
-                h->hosts_replica.push_back(KnownHost {ip, mac, name, state, false});
+                long id = stol(request.pop());
+                h->hosts_replica.push_back(KnownHost {ip, mac, name, state, false, 0, id});
             }
 
             pthread_mutex_unlock(&h->mutex_hosts_replica);
@@ -355,26 +358,19 @@ void *Host::run_election(void *ctx) {
         if (h->state == HostState::RunElection) {
             /*  sends election messages 
                 if there is no higher id, sends coordinator message */
-            bool has_higher_id = false;
             std::vector<KnownHost> hosts_replica_c = h->get_hosts();
             
             for (auto host: hosts_replica_c) {
                 if (host.election_id <= h->election_id) continue;
-                has_higher_id = true; 
             }
 
-            if (!has_higher_id) {
+            // sleeps and checks if any answer message arrived
+            usleep(h->sleep_answer);
+            if (!h->b_election_answer) {
                 // sends coordinator
                 h->b_should_switch_manager = true;
-            } else {
-                // sleeps and checks if any answer message arrived
-                usleep(h->sleep_answer);
-                if (!h->b_election_answer) {
-                    // sends coordinator
-                    h->b_should_switch_manager = true;
-                }
-                h->update_election_answer(false);
             }
+            h->update_election_answer(false);
         }
 
         usleep(h->sleep_run_election);
@@ -415,8 +411,11 @@ void *Host::interface(void *ctx) {
         wmove(output, 5, 58);
         wprintw(output, "Status");
 
+        wmove(output, 5, 68);
+        wprintw(output, "ID");
+
         wmove(output, 6, 0);
-        for (int i = 0; i < 64; ++i) {
+        for (int i = 0; i < 70; ++i) {
             wprintw(output, "-");
         }
 
@@ -434,6 +433,9 @@ void *Host::interface(void *ctx) {
 
             wmove(output, i + 7, 58);
             wprintw(output, string_from_state(host.state).c_str());
+
+            wmove(output, i + 7, 68);
+            wprintw(output, std::to_string(host.election_id).c_str());
         }
 
         wrefresh(output);

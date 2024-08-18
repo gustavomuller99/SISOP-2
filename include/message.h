@@ -70,6 +70,8 @@ private:
 /* functions to get mac address of current user */
 std::string format_mac_address(const unsigned char* mac);
 std::string get_mac_address();
+std::string get_ip();
+unsigned long hash(const std::string& str);
 
 /* send packet on broadcast using port and socket  */
 void send_broadcast(Packet p, int sockfd, int port);

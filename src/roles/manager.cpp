@@ -138,6 +138,7 @@ void *Manager::discovery(void *ctx) {
         // consumes the package
         std::string mac = p.pop();
         std::string hostname = p.pop();
+        std::string id = p.pop();
         if (hostname.empty()) hostname = p.src_ip;
 
         // discovered new host -> should call management subservice 
@@ -146,7 +147,9 @@ void *Manager::discovery(void *ctx) {
             mac,
             hostname,
             HostState::Discovery,
-            false
+            false,
+            0,
+            stol(id)
         });
     }
 
@@ -257,6 +260,7 @@ void *Manager::update_rm(void *ctx) {
             
             Packet request = Packet(MessageType::SleepServiecUpdateRM, 0, 0);
             for (KnownHost copy: hosts_c) {
+                request.push(std::to_string(copy.election_id));
                 request.push(string_from_state(copy.state));
                 request.push(copy.ip);
                 request.push(copy.mac);
@@ -331,8 +335,11 @@ void *Manager::interface(void *ctx) {
         wmove(output, 0, 58);
         wprintw(output, "Status");
 
+        wmove(output, 0, 68);
+        wprintw(output, "ID");
+
         wmove(output, 1, 0);
-        for (int i = 0; i < 64; ++i) {
+        for (int i = 0; i < 70; ++i) {
             wprintw(output, "-");
         }
 
@@ -352,6 +359,9 @@ void *Manager::interface(void *ctx) {
 
             wmove(output, i + 2, 58);
             wprintw(output, string_from_state(host.state).c_str());
+
+            wmove(output, i + 2, 68);
+            wprintw(output, std::to_string(host.election_id).c_str());
         }
 
         wrefresh(output);

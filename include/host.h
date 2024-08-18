@@ -25,7 +25,7 @@ struct KnownHost {
     HostState state;
     bool connected; // track host socket connected
     int sockfd; // host socket
-    int election_id;
+    long election_id;
 };
 
 class Host {

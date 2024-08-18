@@ -1,6 +1,9 @@
 #include <message.h>
 #include <sys/ioctl.h>
 #include <net/if.h>
+#include <ifaddrs.h>
+#include <stdio.h>
+#include <netdb.h>
 
 Packet::Packet(int type, int seqn, int timestamp) {
     this->type = type;
@@ -172,4 +175,47 @@ std::string get_mac_address() {
 
     printf("ERROR getting MAC Address\n");
     exit(EXIT_FAILURE); 
+}
+
+std::string get_ip() {
+    struct ifaddrs *ifaddr, *ifa;
+    int family, s;
+    char host[BUFFER_SIZE];
+    std::string ip_address;
+
+    if (getifaddrs(&ifaddr) == -1) {
+        exit(EXIT_FAILURE);
+    }
+
+    for (ifa = ifaddr; ifa != nullptr; ifa = ifa->ifa_next) {
+        if (ifa->ifa_addr == nullptr)
+            continue;
+
+        family = ifa->ifa_addr->sa_family;
+
+        if (family == AF_INET) {
+            s = getnameinfo(ifa->ifa_addr, sizeof(struct sockaddr_in), host, BUFFER_SIZE, nullptr, 0, NI_NUMERICHOST);
+            if (s != 0) {
+                exit(EXIT_FAILURE);
+            }
+            if (strcmp(ifa->ifa_name, "lo") != 0) {
+                ip_address = host;
+                break;
+            }
+        }
+    }
+
+    freeifaddrs(ifaddr);
+
+    if (ip_address.empty()) {
+        return "";
+    }
+    return ip_address;
+}
+
+unsigned long hash(const std::string& str) {
+    unsigned long hash = 5381;
+    for (size_t i = 0; i < str.size(); ++i)
+        hash = 33 * hash + (unsigned char)str[i];
+    return hash;
 }
