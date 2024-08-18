@@ -35,6 +35,7 @@ public:
 
     void exit_handler(int sn, siginfo_t* t, void* ctx);
     std::vector<KnownHost> get_hosts();
+    std::string get_ip();
     
     int election_id = 0;
     bool manager_up = false;
@@ -84,7 +85,7 @@ private:
     const int sleep_monitoring = 50 * 1000;
     const int sleep_check_manager = 5000 * 1000;
     const int sleep_run_election = 500 * 1000;
-    const int sleep_answer = 2000 * 1000; 
+    const int sleep_answer = 5000 * 1000; 
     const int sleep_output = 500 * 1000;
     const int sleep_input = 25 * 1000;
     const int input_timeout = 25;

@@ -1,5 +1,26 @@
 #include <host.h>
 
+#include <iostream>
+#include <cstring>
+#include <pthread.h>
+#include <string>
+#include <list>
+#include <map>
+#include <iomanip>
+#include <mutex>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/ioctl.h>
+#include <netinet/in.h>
+#include <net/if.h>
+#include <csignal>
+#include <netdb.h>
+#include <arpa/inet.h>
+#include <vector>
+#include <cstdlib>
+#include <ifaddrs.h>
+
+
 void Host::init() {
     pthread_mutex_lock(&this->mutex_ncurses);
     initscr();
@@ -43,12 +64,6 @@ void Host::switch_state(HostState new_state) {
     if (this->state != HostState::Exit) {
         this->prev_state = this->state;
         this->state = new_state;
-
-        if (this->state == HostState::Awaken && this->prev_state != HostState::RunElection) {
-            // To prevent immediate re-trigger of switch_state
-            this->prev_state = HostState::Awaken;
-            this->state = HostState::RunElection;        
-        }
     }
     pthread_mutex_unlock(&this->mutex_change_state);
 }
@@ -111,6 +126,43 @@ void Host::create_monitoring_socket() {
 
     manager_up = true;
     m_info.ip = inet_ntoa(manager_addr.sin_addr);
+}
+
+
+std::string Host::get_ip() {
+    struct ifaddrs *ifaddr, *ifa;
+    int family, s;
+    char host[NI_MAXHOST];
+    std::string ip_address;
+
+    if (getifaddrs(&ifaddr) == -1) {
+        exit(EXIT_FAILURE);
+    }
+
+    for (ifa = ifaddr; ifa != nullptr; ifa = ifa->ifa_next) {
+        if (ifa->ifa_addr == nullptr)
+            continue;
+
+        family = ifa->ifa_addr->sa_family;
+
+        if (family == AF_INET) {
+            s = getnameinfo(ifa->ifa_addr, sizeof(struct sockaddr_in), host, NI_MAXHOST, nullptr, 0, NI_NUMERICHOST);
+            if (s != 0) {
+                exit(EXIT_FAILURE);
+            }
+            if (strcmp(ifa->ifa_name, "lo") != 0) {
+                ip_address = host;
+                break;
+            }
+        }
+    }
+
+    freeifaddrs(ifaddr);
+
+    if (ip_address.empty()) {
+        return "";
+    }
+    return ip_address;
 }
 
 std::vector<KnownHost> Host::get_hosts() {
@@ -289,7 +341,7 @@ void *Host::listen_election(void *ctx) {
     struct sockaddr_in recv_addr;
     struct sockaddr_in elector_address;
 
-    if ((h->sck_listen = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
+    if ((h->sck_election = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
         exit(EXIT_FAILURE);
 
     memset(&recv_addr, 0, sizeof recv_addr);
@@ -298,24 +350,21 @@ void *Host::listen_election(void *ctx) {
     recv_addr.sin_port = (in_port_t) htons(PORT_ELECTION);
     recv_addr.sin_addr.s_addr = INADDR_ANY;
 
-    if (bind(h->sck_listen, (struct sockaddr *) &recv_addr, sizeof(struct sockaddr_in)) < 0)
+    if (bind(h->sck_election, (struct sockaddr *) &recv_addr, sizeof(struct sockaddr_in)) < 0)
         exit(EXIT_FAILURE);
 
     while(h->state != HostState::Exit) {
         char rbuf[BUFFER_SIZE] = {};
         socklen_t len = sizeof(recv_addr);
 
-        if (recvfrom(h->sck_listen, rbuf, sizeof(rbuf) - 1, 0, (struct sockaddr *) &elector_address, &len) < 0)
+        if (recvfrom(h->sck_election, rbuf, sizeof(rbuf) - 1, 0, (struct sockaddr *) &elector_address, &len) < 0)
             continue;
 
         Packet p = Packet(rbuf);
         p.src_ip = inet_ntoa(recv_addr.sin_addr);
-
-        if (p.get_type() == MessageType::ElectionServiceAnswer) {
-            h->update_election_answer(true);
-        }
+        p.print();
         
-        else if (p.get_type() == MessageType::ElectionServiceCoordinator) {
+        if (p.get_type() == MessageType::ElectionServiceCoordinator) {
             // process coordinator and switch state to awaken again
             h->switch_state(HostState::Awaken);
         }
@@ -325,58 +374,13 @@ void *Host::listen_election(void *ctx) {
             h->switch_state(HostState::RunElection);
 
             Packet response = Packet(MessageType::ElectionServiceAnswer, 0, 0);
-            send_udp(response, h->sck_listen, PORT_ELECTION);
+            send_udp(response, h->sck_election, PORT_ELECTION);
         }
     }
     
     close(h->sck_listen);   
     return 0;
 }
-
-/*
-void *Host::listen_election(void *ctx) {
-    Host *h = ((Host *) ctx);
-
-    // creating udp server socket file descriptor
-    int trueflag = 1;
-    struct sockaddr_in recv_addr;
-
-    if ((h->sck_listen = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
-        exit(EXIT_FAILURE);
-
-    if (setsockopt(h->sck_listen, SOL_SOCKET, SO_BROADCAST, &trueflag, sizeof trueflag) < 0)
-        exit(EXIT_FAILURE);
-
-    memset(&recv_addr, 0, sizeof recv_addr);
-
-    recv_addr.sin_family = AF_INET;
-    recv_addr.sin_port = (in_port_t) htons(PORT_ELECTION);
-    recv_addr.sin_addr.s_addr = INADDR_ANY;
-
-    if (bind(h->sck_listen, (struct sockaddr *) &recv_addr, sizeof recv_addr) < 0)
-        exit(EXIT_FAILURE);
-
-    while(h->state != HostState::Exit) {
-        Packet request = rec_packet_udp(h->sck_listen);
-
-        if (request.get_type() == MessageType::ElectionServiceAnswer) {
-            h->update_election_answer(true);
-        } else if (request.get_type() == MessageType::ElectionServiceCoordinator) {
-            // process coordinator and switch state to awaken again
-            h->switch_state(HostState::Awaken);
-        } else if (request.get_type() == MessageType::ElectionServiceElection) {
-            // sends answer message and starts election process
-            h->switch_state(HostState::RunElection);
-
-            Packet response = Packet(MessageType::ElectionServiceAnswer, 0, 0);
-            send_udp(response, h->sck_listen, PORT_ELECTION);
-        }
-    }
-
-    close(h->sck_listen);   
-    return 0;
-}
-*/
 
 void *Host::run_election(void *ctx) {
     Host *h = ((Host *) ctx);
@@ -398,43 +402,61 @@ void *Host::run_election(void *ctx) {
 
     Packet request = Packet(MessageType::ElectionServiceElection, 0, 0);
 
+    int host_ip = stoi(h->get_ip());
+
     while(h->state != HostState::Exit) {
         if (h->state == HostState::RunElection) {
             std::vector<KnownHost> hosts_replica_c = h->get_hosts();
-            
-            for (auto host: hosts_replica_c) {
+            std::cout<<"BLABLABLA";
+
+            for (auto replica_host: hosts_replica_c) {
                 // sends election message
-                if (host.election_id > h->election_id){
+                if (stoi(replica_host.ip) > host_ip){
 
                     // sends to PORT ELECTION, Host IP
                     addr.sin_port = (in_port_t) htons(PORT_ELECTION);
-                    inet_aton(host.ip.c_str(), &addr.sin_addr);
+                    inet_aton(replica_host.ip.c_str(), &addr.sin_addr);
 
                     std::string str = request.to_payload();
                     const char* _payload = str.c_str();
 
                     if (sendto(h->sck_election, _payload, strlen(_payload), MSG_CONFIRM, (const struct sockaddr *) &addr, sizeof(addr)) < 0)
                         exit(EXIT_FAILURE);
+
+                    char rbuf[BUFFER_SIZE] = {};
+                    socklen_t len = sizeof(addr);
+
+                    if (recvfrom(h->sck_election, rbuf, sizeof(rbuf) - 1, 0, (struct sockaddr *) &addr, &len) >= 0){
+                        Packet p = Packet(rbuf);
+                        p.src_ip = inet_ntoa(addr.sin_addr);
+                        p.print();
+
+                        if (p.get_type() == MessageType::ElectionServiceAnswer) {
+                            h->update_election_answer(true);
+                        }
+                    }
                 }
             }
-
-            // sleeps to wait for a response
-            usleep(h->sleep_answer);
+            close(h->sck_election);
 
             // checks if message has arrived
-            if (!h->b_election_answer) {
+            if (h->b_election_answer) {
+                h->switch_state(HostState::Discovery);
+            }
+            else{
                 // sends coordinator
+                // for (auto replica_host: hosts_replica_c) {
+                //     // sends election message
+
+                // }
                 h->b_should_become_manager = true;
             }
-            h->update_election_answer(false);
-
-            h->switch_state(HostState::Awaken);
         }
     
         usleep(h->sleep_run_election);
     }
     
-    close(h->sck_election);
+    
     return 0;
 }
 
