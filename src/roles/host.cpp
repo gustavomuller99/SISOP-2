@@ -407,7 +407,7 @@ void *Host::run_election(void *ctx) {
     while(h->state != HostState::Exit) {
         if (h->state == HostState::RunElection) {
             std::vector<KnownHost> hosts_replica_c = h->get_hosts();
-            std::cout<<"BLABLABLA"
+            std::cout<<"BLABLABLA";
 
             for (auto replica_host: hosts_replica_c) {
                 // sends election message
