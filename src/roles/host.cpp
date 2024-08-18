@@ -65,9 +65,10 @@ void Host::switch_state(HostState new_state) {
         this->prev_state = this->state;
         this->state = new_state;
 
-         if (new_state == HostState::Awaken && this->recovered) {
-            this->switch_state(HostState::RunElection);
-            this->recovered = false;       
+        if (this->state == HostState::Awaken && this->prev_state != HostState::RunElection) {
+            // To prevent immediate re-trigger of switch_state
+            this->prev_state = HostState::Awaken;
+            this->state = HostState::RunElection;        
         }
     }
     pthread_mutex_unlock(&this->mutex_change_state);
@@ -441,7 +442,7 @@ void *Host::run_election(void *ctx) {
                 h->b_should_become_manager = true;
             }
             else{
-                h->switch_state(HostState::Discovery);
+                h->switch_state(HostState::Awaken);
 
             }
         }
