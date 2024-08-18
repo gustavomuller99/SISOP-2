@@ -363,12 +363,8 @@ void *Host::listen_election(void *ctx) {
         Packet p = Packet(rbuf);
         p.src_ip = inet_ntoa(recv_addr.sin_addr);
         p.print();
-
-        if (p.get_type() == MessageType::ElectionServiceAnswer) {
-            h->update_election_answer(true);
-        }
         
-        else if (p.get_type() == MessageType::ElectionServiceCoordinator) {
+        if (p.get_type() == MessageType::ElectionServiceCoordinator) {
             // process coordinator and switch state to awaken again
             h->switch_state(HostState::Awaken);
         }
@@ -411,6 +407,7 @@ void *Host::run_election(void *ctx) {
     while(h->state != HostState::Exit) {
         if (h->state == HostState::RunElection) {
             std::vector<KnownHost> hosts_replica_c = h->get_hosts();
+            std::cout<<"BLABLABLA"
 
             for (auto replica_host: hosts_replica_c) {
                 // sends election message
@@ -425,14 +422,28 @@ void *Host::run_election(void *ctx) {
 
                     if (sendto(h->sck_election, _payload, strlen(_payload), MSG_CONFIRM, (const struct sockaddr *) &addr, sizeof(addr)) < 0)
                         exit(EXIT_FAILURE);
+
+                    char rbuf[BUFFER_SIZE] = {};
+                    socklen_t len = sizeof(addr);
+
+                    if (recvfrom(h->sck_election, rbuf, sizeof(rbuf) - 1, 0, (struct sockaddr *) &addr, &len) >= 0){
+                        Packet p = Packet(rbuf);
+                        p.src_ip = inet_ntoa(addr.sin_addr);
+                        p.print();
+
+                        if (p.get_type() == MessageType::ElectionServiceAnswer) {
+                            h->update_election_answer(true);
+                        }
+                    }
                 }
             }
-
-            // sleeps to wait for a response
-            usleep(h->sleep_answer);
+            close(h->sck_election);
 
             // checks if message has arrived
-            if (!h->b_election_answer) {
+            if (h->b_election_answer) {
+                h->switch_state(HostState::Discovery);
+            }
+            else{
                 // sends coordinator
                 // for (auto replica_host: hosts_replica_c) {
                 //     // sends election message
@@ -440,16 +451,12 @@ void *Host::run_election(void *ctx) {
                 // }
                 h->b_should_become_manager = true;
             }
-            else{
-                h->switch_state(HostState::Discovery);
-                h->manager_up = true;
-            }
         }
     
         usleep(h->sleep_run_election);
     }
     
-    close(h->sck_election);
+    
     return 0;
 }
 
