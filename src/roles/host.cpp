@@ -362,6 +362,7 @@ void *Host::listen_election(void *ctx) {
 
         Packet p = Packet(rbuf);
         p.src_ip = inet_ntoa(recv_addr.sin_addr);
+        p.print();
 
         if (p.get_type() == MessageType::ElectionServiceAnswer) {
             h->update_election_answer(true);
@@ -414,7 +415,6 @@ void *Host::run_election(void *ctx) {
             for (auto replica_host: hosts_replica_c) {
                 // sends election message
                 if (stoi(replica_host.ip) > host_ip){
-                    std::cout<<"O MEU É MENOR";
 
                     // sends to PORT ELECTION, Host IP
                     addr.sin_port = (in_port_t) htons(PORT_ELECTION);
@@ -434,6 +434,10 @@ void *Host::run_election(void *ctx) {
             // checks if message has arrived
             if (!h->b_election_answer) {
                 // sends coordinator
+                // for (auto replica_host: hosts_replica_c) {
+                //     // sends election message
+
+                // }
                 h->b_should_become_manager = true;
             }
             else{
