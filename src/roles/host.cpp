@@ -340,7 +340,7 @@ void *Host::listen_election(void *ctx) {
     struct sockaddr_in recv_addr;
     struct sockaddr_in elector_address;
 
-    if ((h->sck_election = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
+    if ((h->sck_listen = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
         exit(EXIT_FAILURE);
 
     memset(&recv_addr, 0, sizeof recv_addr);
@@ -349,15 +349,14 @@ void *Host::listen_election(void *ctx) {
     recv_addr.sin_port = (in_port_t) htons(PORT_ELECTION);
     recv_addr.sin_addr.s_addr = INADDR_ANY;
 
-    if (bind(h->sck_election, (struct sockaddr *) &recv_addr, sizeof(struct sockaddr_in)) < 0)
+    if (bind(h->sck_listen, (struct sockaddr *) &recv_addr, sizeof(struct sockaddr_in)) < 0)
         exit(EXIT_FAILURE);
 
     while(h->state != HostState::Exit) {
-        std::cout<<"BLABLABLA";
         char rbuf[BUFFER_SIZE] = {};
         socklen_t len = sizeof(recv_addr);
 
-        if (recvfrom(h->sck_election, rbuf, sizeof(rbuf) - 1, 0, (struct sockaddr *) &elector_address, &len) < 0)
+        if (recvfrom(h->sck_listen, rbuf, sizeof(rbuf)-1, 0, (struct sockaddr *) &elector_address, &len) < 0)
             continue;
 
         Packet p = Packet(rbuf);
@@ -376,7 +375,7 @@ void *Host::listen_election(void *ctx) {
             std::string str = response.to_payload();
             const char* _payload = str.c_str();
 
-            sendto(h->sck_election, _payload, strlen(_payload), MSG_CONFIRM, (const struct sockaddr *) &elector_address, len);
+            sendto(h->sck_listen, _payload, strlen(_payload), 0, (const struct sockaddr *) &elector_address, len);
 
             h->switch_state(HostState::RunElection);
         }
@@ -389,19 +388,18 @@ void *Host::listen_election(void *ctx) {
 void *Host::run_election(void *ctx) {
     Host *h = ((Host *) ctx);
 
-    struct sockaddr_in addr;
-
     if ((h->sck_election = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
         exit(EXIT_FAILURE);
 
     struct timeval timeout;
-    timeout.tv_sec = 0;
-    timeout.tv_usec = 5000;
+    timeout.tv_sec = 2;
+    timeout.tv_usec = 0;
     if (setsockopt(h->sck_election, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) < 0)
         exit(EXIT_FAILURE);
 
-    memset(&addr, 0, sizeof addr);
+    struct sockaddr_in addr;
 
+    memset(&addr, 0, sizeof addr);
     addr.sin_family = AF_INET;
 
     Packet request = Packet(MessageType::ElectionServiceElection, 0, 0);
@@ -411,7 +409,6 @@ void *Host::run_election(void *ctx) {
     while(h->state != HostState::Exit) {
         if (h->state == HostState::RunElection) {
             std::vector<KnownHost> hosts_replica_c = h->get_hosts();
-            std::cout<<"BLABLABLA";
 
             for (auto replica_host: hosts_replica_c) {
                 // sends election message
@@ -424,13 +421,13 @@ void *Host::run_election(void *ctx) {
                     std::string str = request.to_payload();
                     const char* _payload = str.c_str();
 
-                    if (sendto(h->sck_election, _payload, strlen(_payload), MSG_CONFIRM, (const struct sockaddr *) &addr, sizeof(addr)) < 0)
+                    if (sendto(h->sck_election, _payload, strlen(_payload), 0, (const struct sockaddr *) &addr, sizeof(addr)) < 0)
                         exit(EXIT_FAILURE);
 
                     char rbuf[BUFFER_SIZE] = {};
                     socklen_t len = sizeof(addr);
 
-                    if (recvfrom(h->sck_election, rbuf, sizeof(rbuf) - 1, 0, (struct sockaddr *) &addr, &len) >= 0){
+                    if (recvfrom(h->sck_election, rbuf, sizeof(rbuf)-1, 0, (struct sockaddr *) &addr, &len) >= 0){
                         Packet p = Packet(rbuf);
                         p.src_ip = inet_ntoa(addr.sin_addr);
                         p.print();
@@ -441,7 +438,6 @@ void *Host::run_election(void *ctx) {
                     }
                 }
             }
-            close(h->sck_election);
 
             // checks if message has arrived
             if (h->b_election_answer) {
@@ -456,7 +452,7 @@ void *Host::run_election(void *ctx) {
                 h->b_should_become_manager = true;
             }
         }
-    
+        close(h->sck_election);
         usleep(h->sleep_run_election);
     }
     
