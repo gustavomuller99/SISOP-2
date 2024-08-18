@@ -35,6 +35,7 @@ public:
 
     void exit_handler(int sn, siginfo_t* t, void* ctx);
     std::vector<KnownHost> get_hosts();
+    std::string get_ip();
     
     int election_id = 0;
     bool manager_up = false;
