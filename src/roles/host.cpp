@@ -341,7 +341,7 @@ void *Host::listen_election(void *ctx) {
     struct sockaddr_in recv_addr;
     struct sockaddr_in elector_address;
 
-    if ((h->sck_listen = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
+    if ((h->sck_election = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
         exit(EXIT_FAILURE);
 
     memset(&recv_addr, 0, sizeof recv_addr);
@@ -350,14 +350,14 @@ void *Host::listen_election(void *ctx) {
     recv_addr.sin_port = (in_port_t) htons(PORT_ELECTION);
     recv_addr.sin_addr.s_addr = INADDR_ANY;
 
-    if (bind(h->sck_listen, (struct sockaddr *) &recv_addr, sizeof(struct sockaddr_in)) < 0)
+    if (bind(h->sck_election, (struct sockaddr *) &recv_addr, sizeof(struct sockaddr_in)) < 0)
         exit(EXIT_FAILURE);
 
     while(h->state != HostState::Exit) {
         char rbuf[BUFFER_SIZE] = {};
         socklen_t len = sizeof(recv_addr);
 
-        if (recvfrom(h->sck_listen, rbuf, sizeof(rbuf) - 1, 0, (struct sockaddr *) &elector_address, &len) < 0)
+        if (recvfrom(h->sck_election, rbuf, sizeof(rbuf) - 1, 0, (struct sockaddr *) &elector_address, &len) < 0)
             continue;
 
         Packet p = Packet(rbuf);
@@ -378,7 +378,7 @@ void *Host::listen_election(void *ctx) {
             h->switch_state(HostState::RunElection);
 
             Packet response = Packet(MessageType::ElectionServiceAnswer, 0, 0);
-            send_udp(response, h->sck_listen, PORT_ELECTION);
+            send_udp(response, h->sck_election, PORT_ELECTION);
         }
     }
     
