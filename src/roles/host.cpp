@@ -413,6 +413,7 @@ void *Host::run_election(void *ctx) {
             for (auto replica_host: hosts_replica_c) {
                 // sends election message
                 if (stoi(replica_host.ip) > host_ip){
+                    std::cout<<"TENHO ID MENOR";
 
                     // sends to PORT ELECTION, Host IP
                     addr.sin_port = (in_port_t) htons(PORT_ELECTION);
