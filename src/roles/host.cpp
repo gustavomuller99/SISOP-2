@@ -32,9 +32,12 @@ void Host::init() {
     pthread_mutex_unlock(&this->mutex_ncurses);
 
     b_should_exit_election = true;
+
+    this->has_joined_service = false;
 }
 
 void Host::exit_handler(int sn, siginfo_t* t, void* ctx) {
+    this->has_joined_service = false;
     this->switch_state(HostState::Exit);
 }
 
@@ -44,10 +47,9 @@ void Host::switch_state(HostState new_state) {
         this->prev_state = this->state;
         this->state = new_state;
 
-        if (this->state == HostState::Awaken && this->prev_state != HostState::RunElection) {
-            // To prevent immediate re-trigger of switch_state
-            this->prev_state = HostState::Awaken;
-            this->state = HostState::RunElection;        
+        if (this->state == HostState::Awaken && !this->has_joined_service) {
+            this->has_joined_service = true;  // mark as joined the service
+            this->switch_state(HostState::RunElection);
         }
     }
     pthread_mutex_unlock(&this->mutex_change_state);

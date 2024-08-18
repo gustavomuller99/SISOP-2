@@ -64,6 +64,8 @@ private:
 
     bool b_election_answer = false;
 
+    bool has_joined_service;
+
     ManagerInfo m_info = {"-1", "-1", "-1"};
     std::vector<KnownHost> hosts_replica; // list of known hosts sent by the manager
 
