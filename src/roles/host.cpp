@@ -442,6 +442,7 @@ void *Host::run_election(void *ctx) {
             }
             else{
                 h->switch_state(HostState::Discovery);
+                h->manager_up = true;
             }
         }
     
