@@ -42,7 +42,6 @@ public:
     bool b_should_exit_election = false;
     int state = HostState::Discovery;
     int prev_state = HostState::Exit;
-    bool recovered = false;
     
 private:
     static void* discovery(void *ctx);
