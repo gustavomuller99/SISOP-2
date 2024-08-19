@@ -9,9 +9,17 @@ void Election::exit_handler(int sn, siginfo_t* t, void* ctx) {
 }
 
 void Election::switch_manager() {
+    std::vector<KnownHost> copy = h->get_hosts();
     h->exit_handler(0, nullptr, nullptr);
+    
     running_as = RunningType::AsManager;
     m = std::make_unique<Manager>(Manager());
+    char hostname[BUFFER_SIZE];
+    gethostname(hostname, BUFFER_SIZE);
+    
+    for (auto c : copy) 
+        if(c.name != hostname) m->add_host(c);
+
     pthread_create(&this->t_manager, NULL, Election::manager, this);
 }
 

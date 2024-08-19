@@ -305,8 +305,8 @@ void *Host::listen_election(void *ctx) {
         exit(EXIT_FAILURE);
 
     timeval tv;
-    tv.tv_sec = 0;
-    tv.tv_usec = 500 * 1000;
+    tv.tv_sec = h->tcp_timeout;
+    tv.tv_usec = 0;
 
     if (setsockopt (h->sck_listen, SOL_SOCKET, SO_RCVTIMEO, (struct timeval *) &tv, sizeof(struct timeval)) < 0) {
         perror("Listen (Listen): Error setting timeout");
