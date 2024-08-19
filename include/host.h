@@ -40,6 +40,7 @@ public:
     bool manager_up = false;
     bool b_should_switch_manager = false;
     bool b_should_exit_election = false;
+    bool b_should_bootstrap_election = false;
     int state = HostState::Discovery;
     int prev_state = HostState::Exit;
     

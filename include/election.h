@@ -14,6 +14,7 @@ public:
     void init();
     void exit_handler(int sn, siginfo_t* t, void* ctx);
     void switch_manager();
+    void switch_host();
 private:
     int running_as = RunningType::AsHost;
     std::unique_ptr<Host> h;

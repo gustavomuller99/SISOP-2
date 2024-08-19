@@ -11,6 +11,8 @@ void Manager::init() {
     pthread_create(&this->t_monitoring, NULL, Manager::monitoring, this);
     pthread_create(&this->t_update_rm, NULL, Manager::update_rm, this);
     pthread_create(&this->t_command, NULL, Manager::command, this);
+    pthread_create(&this->t_listen_election, NULL, Manager::listen_election, this);
+    pthread_create(&this->t_run_election, NULL, Manager::run_election, this);
     pthread_create(&this->t_interface, NULL, Manager::interface, this);
     pthread_create(&this->t_input, NULL, Manager::input, this);
 
@@ -18,27 +20,25 @@ void Manager::init() {
     pthread_join(this->t_monitoring, NULL);
     pthread_join(this->t_update_rm, NULL);
     pthread_join(this->t_command, NULL);
+    pthread_join(this->t_listen_election, NULL);
+    pthread_join(this->t_run_election, NULL);
     pthread_join(this->t_interface, NULL);
     pthread_join(this->t_input, NULL);
 
-    pthread_mutex_lock(&this->mutex_ncurses);
-    endwin();
-    pthread_mutex_unlock(&this->mutex_ncurses);
-}
-
-void Manager::exit_handler(int sn, siginfo_t* t, void* ctx) {
-    pthread_cancel(this->t_discovery);
-    pthread_cancel(this->t_monitoring);
-    pthread_cancel(this->t_command);
-    pthread_cancel(this->t_update_rm);
-    pthread_cancel(this->t_interface);
-    pthread_cancel(this->t_input);
     close(this->sck_discovery);
     for (auto h : this->hosts) {
         if (h.connected) close(h.sockfd);
     }
+
+    pthread_mutex_lock(&this->mutex_ncurses);
     endwin();
-    exit(0);
+    pthread_mutex_unlock(&this->mutex_ncurses);
+
+    b_should_exit_election = true;
+}
+
+void Manager::exit_handler(int sn, siginfo_t* t, void* ctx) {
+    b_should_exit = true;
 }
 
 void Manager::add_host(KnownHost host) {
@@ -110,8 +110,24 @@ void Manager::send_wake_on_lan_packet(std::string mac_address) {
     pclose(fp);
 }
 
+void Manager::update_election_answer(bool value) {
+    pthread_mutex_lock(&this->mutex_answer);
+    b_election_answer = value;
+    pthread_mutex_unlock(&this->mutex_answer);
+}
+
+void Manager::update_running_election(bool value) {
+    pthread_mutex_lock(&this->mutex_running_election);
+    b_running_election = value;
+    pthread_mutex_unlock(&this->mutex_running_election);
+}
+
 void *Manager::discovery(void *ctx) {
     Manager *m = ((Manager *) ctx);
+
+    std::string ip = get_ip();
+    long id = hash(ip.substr(ip.size() - 3, 3));
+    m->election_id = id;
 
     // creating udp server socket file descriptor
     int trueflag = 1;
@@ -132,7 +148,7 @@ void *Manager::discovery(void *ctx) {
     if (bind(m->sck_discovery, (struct sockaddr *) &recv_addr, sizeof recv_addr) < 0)
         exit(EXIT_FAILURE);
 
-    while (1) {
+    while (!m->b_should_exit) {
         Packet p = rec_packet(m->sck_discovery);
 
         // consumes the package
@@ -160,11 +176,13 @@ void *Manager::discovery(void *ctx) {
 void *Manager::monitoring(void *ctx) {
     Manager *m = ((Manager *) ctx);
 
-    while (1) {
+    while (!m->b_should_exit) {
         std::vector<KnownHost> remove;
 
         // lock so no changes are made to host list during status update
         pthread_mutex_lock(&m->hosts_mutex);
+
+        int failed_conn = 0;
 
         for (auto it = m->hosts.begin(); it != m->hosts.end(); it++) {
             KnownHost &host = *it;
@@ -223,6 +241,7 @@ void *Manager::monitoring(void *ctx) {
                 host.state = HostState::Asleep;
                 host.connected = false;
                 close(host.sockfd);
+                failed_conn++;
             } else if (response.get_type() == MessageType::SleepServiceExit) {
                 // Handle host exit
                 remove.push_back(*it);
@@ -232,6 +251,15 @@ void *Manager::monitoring(void *ctx) {
         }
 
         pthread_mutex_unlock(&m->hosts_mutex);
+
+        if (failed_conn != 0 && failed_conn == (int) m->hosts.size()) {
+            m->failed_count++;
+        } else m->failed_count = 0;
+
+        if (m->failed_count == 10) {
+            m->b_should_switch_host = true;
+            m->b_should_try_election = true;
+        }
 
         for (auto r: remove) {
             m->remove_host(r);
@@ -245,7 +273,7 @@ void *Manager::monitoring(void *ctx) {
 void *Manager::update_rm(void *ctx) {
     Manager *m = ((Manager *) ctx);
 
-    while (1) {
+    while (!m->b_should_exit) {
 
         /* get copy of hosts for update */
         std::vector<KnownHost> hosts_c = m->get_hosts();
@@ -278,7 +306,7 @@ void *Manager::update_rm(void *ctx) {
 void *Manager::command(void *ctx) {
     Manager *m = ((Manager *) ctx);
 
-    while (1) {
+    while (!m->b_should_exit) {
 
         while(!m->cmd.empty()) {
             std::pair<int, std::string> send_cmd = m->cmd.front();
@@ -310,6 +338,105 @@ void *Manager::command(void *ctx) {
     }
 }
 
+void *Manager::listen_election(void *ctx) {
+    Manager *m = ((Manager *) ctx);
+
+    // creating udp server socket file descriptor
+    int trueflag = 1;
+    struct sockaddr_in recv_addr;
+
+    if ((m->sck_listen = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
+        exit(EXIT_FAILURE);
+
+    if (setsockopt(m->sck_listen, SOL_SOCKET, SO_REUSEADDR, &trueflag, sizeof trueflag) < 0)
+        exit(EXIT_FAILURE);
+
+    memset(&recv_addr, 0, sizeof recv_addr);
+
+    recv_addr.sin_family = AF_INET;
+    recv_addr.sin_port = (in_port_t) htons(PORT_ELECTION);
+    recv_addr.sin_addr.s_addr = INADDR_ANY;
+
+    if (bind(m->sck_listen, (struct sockaddr *) &recv_addr, sizeof recv_addr) < 0)
+        exit(EXIT_FAILURE);
+
+    timeval tv;
+    tv.tv_sec = m->tcp_timeout;
+    tv.tv_usec = 0;
+
+    if (setsockopt (m->sck_listen, SOL_SOCKET, SO_RCVTIMEO, (struct timeval *) &tv, sizeof(struct timeval)) < 0) {
+        perror("Listen (Listen): Error setting timeout");
+        close(m->sck_listen);
+    }
+
+    while(!m->b_should_exit) {
+        /*  listen for message 
+            needs to be able to read from multiple sources */
+        Packet request = rec_packet(m->sck_listen);
+
+        if (request.get_type() == MessageType::Error) {
+            continue;
+        }
+        else if (request.get_type() == MessageType::ElectionServiceAnswer) {
+            m->update_election_answer(true);
+        } else if (request.get_type() == MessageType::ElectionServiceCoordinator) {
+            // process coordinator and switch state to awaken again
+            m->b_should_switch_host = true;
+        } else if (request.get_type() == MessageType::ElectionServiceEletcion) {
+            // sends answer message and starts election process
+            request.print();
+            exit(0);
+            m->update_running_election(true);
+
+            Packet response = Packet(MessageType::ElectionServiceAnswer, 0, 0);
+            send_udp(response, m->sck_election, PORT_ELECTION, request.src_ip);
+        }
+    }
+
+    close(m->sck_listen);   
+    return 0;
+}
+
+void *Manager::run_election(void *ctx) {
+    Manager *m = ((Manager *) ctx);
+
+    // creating udp socket file descriptor
+    int trueflag = 1;
+
+    if ((m->sck_election = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)
+        exit(EXIT_FAILURE);
+
+    while(!m->b_should_exit) {
+        if (m->b_running_election) {
+            /*  sends election messages 
+                if there is no higher id, sends coordinator message */
+            std::vector<KnownHost> hosts_replica_c = m->get_hosts();
+            
+            for (auto host: hosts_replica_c) {
+                if (host.election_id > m->election_id) {
+                    Packet response = Packet(MessageType::ElectionServiceEletcion, 0, 0);
+                    send_udp(response, m->sck_election, PORT_ELECTION, host.ip);
+                }
+            }
+
+            // sleeps and checks if any answer message arrived
+            usleep(m->sleep_answer);
+            if (!m->b_election_answer) {
+                // sends coordinator
+                Packet response = Packet(MessageType::ElectionServiceCoordinator, 0, 0);
+                for (auto host: hosts_replica_c) 
+                    send_udp(response, m->sck_election, PORT_ELECTION, host.ip);
+                m->update_running_election(false);
+            }
+            m->update_election_answer(false);
+        }
+
+        usleep(m->sleep_run_election);
+    }
+
+    return 0;
+}
+
 void *Manager::interface(void *ctx) {
     Manager *m = ((Manager *) ctx);
 
@@ -319,7 +446,7 @@ void *Manager::interface(void *ctx) {
     output = create_newwin(height, width, start_y, start_x);
     pthread_mutex_unlock(&m->mutex_ncurses);
 
-    while (1) {
+    while (!m->b_should_exit) {
         pthread_mutex_lock(&m->mutex_ncurses);
 
         wclear(output);
@@ -387,7 +514,7 @@ void *Manager::input(void *ctx) {
 
     std::string in = "";
 
-    while (1) {
+    while (!m->b_should_exit) {
         pthread_mutex_lock(&m->mutex_ncurses);
         char ch = wgetch(input);
         if (ch == '\n') {
