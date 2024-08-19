@@ -23,18 +23,6 @@ void Election::switch_manager() {
     pthread_create(&this->t_manager, NULL, Election::manager, this);
 }
 
-void Election::switch_host() {
-    m->exit_handler(0, nullptr, nullptr);
-
-    running_as = RunningType::AsHost;
-    h = std::make_unique<Host>(Host());
-
-    if (m->b_should_try_election)
-        h->b_should_bootstrap_election = true;
-
-    pthread_create(&this->t_host, NULL, Election::host, this);
-}
-
 void Election::init() {
     /* starts executing as host */
     h = std::make_unique<Host>(Host());
@@ -66,10 +54,7 @@ void *Election::check(void *ctx) {
             if (e->h->b_should_switch_manager)
                 e->switch_manager();
         } else {
-            if (e->m->b_should_exit_election)
-                break;
-            if (e->m->b_should_switch_host)
-                e->switch_host();
+
         }
         usleep(e->sleep_check);
     }

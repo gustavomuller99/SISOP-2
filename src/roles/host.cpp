@@ -272,12 +272,10 @@ void *Host::check_manager(void *ctx) {
     usleep(h->sleep_check_manager); 
 
     while (h->state != HostState::Exit) {
-        if ((!h->manager_up && h->state != HostState::RunElection) || 
-                h->b_should_bootstrap_election) {
+        if (!h->manager_up && h->state != HostState::RunElection) {
             h->switch_state(HostState::RunElection);
         }
 
-        h->b_should_bootstrap_election = false;
         usleep(h->sleep_check_manager);
     }
 
