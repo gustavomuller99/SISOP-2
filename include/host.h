@@ -60,6 +60,7 @@ private:
     int sck_discovery;
     int sck_monitoring;
     int sck_listen;
+    int sck_election;
 
     bool b_election_answer = false;
 
@@ -83,7 +84,7 @@ private:
     const int sleep_monitoring = 50 * 1000;
     const int sleep_check_manager = 5000 * 1000;
     const int sleep_run_election = 500 * 1000;
-    const int sleep_answer = 2000 * 1000; 
+    const int sleep_answer = 10000 * 1000; 
     const int sleep_output = 500 * 1000;
     const int sleep_input = 25 * 1000;
     const int input_timeout = 25;

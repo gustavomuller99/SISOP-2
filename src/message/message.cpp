@@ -91,6 +91,29 @@ void send_broadcast(Packet p, int sockfd, int port) {
     return;
 }
 
+void send_udp(Packet p, int sockfd, int port, std::string ip) {
+    struct sockaddr_in serv_addr;
+    memset(&serv_addr, 0, sizeof(serv_addr));
+
+    serv_addr.sin_family = AF_INET;
+    serv_addr.sin_port = (in_port_t) htons(port);
+    serv_addr.sin_addr.s_addr = inet_addr(ip.c_str());
+
+    std::string str = p.to_payload();
+    const char* _payload = str.c_str();
+
+    int r = sendto(sockfd,
+        _payload,
+        strlen(_payload),
+        MSG_CONFIRM,
+        (const struct sockaddr *) &serv_addr,
+        sizeof(serv_addr));
+
+    if (r < 0) perror("?: ");
+
+    return;
+}
+
 void send_tcp(Packet p, int sockfd, int port, std::string ip) {
     std::string str = p.to_payload();
     const char* message = str.c_str();
@@ -110,7 +133,7 @@ Packet rec_packet(int sockfd) {
     socklen_t len = sizeof(rec_addr);
 
     if (recvfrom(sockfd, rbuf, sizeof(rbuf) - 1, 0, (struct sockaddr*) &rec_addr, &len) < 0)
-        exit(EXIT_FAILURE);
+        return Packet(MessageType::Error, 0, 0);
 
     Packet p = Packet(rbuf);
     p.src_ip = inet_ntoa(rec_addr.sin_addr);

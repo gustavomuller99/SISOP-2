@@ -133,7 +133,10 @@ void *Host::discovery(void *ctx) {
         Packet p = Packet(MessageType::SleepServiceDiscovery, 0, 0);
 
         std::string ip = get_ip();
-        p.push(std::to_string(hash(ip.substr(ip.size() - 3, 3))));
+        long id = hash(ip.substr(ip.size() - 3, 3));
+        h->election_id = id;
+        
+        p.push(std::to_string(id));
         char hostname[BUFFER_SIZE];
         gethostname(hostname, BUFFER_SIZE);
         p.push(hostname);
@@ -282,68 +285,54 @@ void *Host::check_manager(void *ctx) {
 void *Host::listen_election(void *ctx) {
     Host *h = ((Host *) ctx);
 
+    // creating udp server socket file descriptor
     int trueflag = 1;
+    struct sockaddr_in recv_addr;
 
-    if ((h->sck_listen = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-        printf("Election (Listen): ERROR opening socket\n");
-        exit(EXIT_FAILURE); 
-    }
-
-    if (setsockopt(h->sck_listen, SOL_SOCKET, SO_REUSEADDR, &trueflag, sizeof(trueflag)) < 0) {
-        printf("Election (Listen): ERROR reusing addr");
+    if ((h->sck_listen = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
         exit(EXIT_FAILURE);
-    }
 
-    if (setsockopt(h->sck_listen, SOL_SOCKET, SO_REUSEPORT, &trueflag, sizeof(trueflag)) < 0) {
-        printf("Election (Listen): ERROR reusing port");
+    if (setsockopt(h->sck_listen, SOL_SOCKET, SO_REUSEADDR, &trueflag, sizeof trueflag) < 0)
         exit(EXIT_FAILURE);
-    }
 
-    struct sockaddr_in manager_addr;
-    struct sockaddr_in guest_addr;
-    socklen_t addr_len = sizeof(struct sockaddr_in);
+    memset(&recv_addr, 0, sizeof recv_addr);
 
-    memset(&guest_addr, 0, sizeof(guest_addr));
-    guest_addr.sin_family = AF_INET;
-    guest_addr.sin_port = htons(PORT_ELECTION);
-    guest_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    
-    if (bind(h->sck_listen, (struct sockaddr*) &guest_addr, addr_len) < 0){
-        printf("Election (Listen): ERROR binding\n");
+    recv_addr.sin_family = AF_INET;
+    recv_addr.sin_port = (in_port_t) htons(PORT_ELECTION);
+    recv_addr.sin_addr.s_addr = INADDR_ANY;
+
+    if (bind(h->sck_listen, (struct sockaddr *) &recv_addr, sizeof recv_addr) < 0)
         exit(EXIT_FAILURE);
-    }
 
     timeval tv;
-    tv.tv_sec = h->tcp_timeout;
-    tv.tv_usec = 0;
+    tv.tv_sec = 0;
+    tv.tv_usec = 500 * 1000;
 
     if (setsockopt (h->sck_listen, SOL_SOCKET, SO_RCVTIMEO, (struct timeval *) &tv, sizeof(struct timeval)) < 0) {
-        perror("Election (Listen): Error setting timeout");
+        perror("Listen (Listen): Error setting timeout");
         close(h->sck_listen);
     }
 
     while(h->state != HostState::Exit) {
         /*  listen for message 
             needs to be able to read from multiple sources */
-        listen(h->sck_listen, 5);
+        Packet request = rec_packet(h->sck_listen);
 
-        if ((h->sck_listen = accept(h->sck_listen, (struct sockaddr *) &manager_addr, &addr_len)) < 0) {
+        if (request.get_type() == MessageType::Error) {
             continue;
         }
-
-        Packet request = rec_packet_tcp(h->sck_listen);
-
-        if (request.get_type() == MessageType::ElectionServiceAnswer) {
+        else if (request.get_type() == MessageType::ElectionServiceAnswer) {
             h->update_election_answer(true);
         } else if (request.get_type() == MessageType::ElectionServiceCoordinator) {
             // process coordinator and switch state to awaken again
             h->switch_state(HostState::Awaken);
+            h->manager_up = true;
         } else if (request.get_type() == MessageType::ElectionServiceEletcion) {
             // sends answer message and starts election process
             h->switch_state(HostState::RunElection);
 
             Packet response = Packet(MessageType::ElectionServiceAnswer, 0, 0);
-            send_tcp(response, h->sck_listen, PORT_ELECTION);
+            send_udp(response, h->sck_election, PORT_ELECTION, request.src_ip);
         }
     }
 
@@ -354,6 +343,12 @@ void *Host::listen_election(void *ctx) {
 void *Host::run_election(void *ctx) {
     Host *h = ((Host *) ctx);
 
+    // creating udp socket file descriptor
+    int trueflag = 1;
+
+    if ((h->sck_election = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)
+        exit(EXIT_FAILURE);
+
     while(h->state != HostState::Exit) {
         if (h->state == HostState::RunElection) {
             /*  sends election messages 
@@ -361,13 +356,19 @@ void *Host::run_election(void *ctx) {
             std::vector<KnownHost> hosts_replica_c = h->get_hosts();
             
             for (auto host: hosts_replica_c) {
-                if (host.election_id <= h->election_id) continue;
+                if (host.election_id > h->election_id) {
+                    Packet response = Packet(MessageType::ElectionServiceEletcion, 0, 0);
+                    send_udp(response, h->sck_election, PORT_ELECTION, host.ip);
+                }
             }
 
             // sleeps and checks if any answer message arrived
             usleep(h->sleep_answer);
             if (!h->b_election_answer) {
                 // sends coordinator
+                Packet response = Packet(MessageType::ElectionServiceCoordinator, 0, 0);
+                for (auto host: hosts_replica_c) 
+                    send_udp(response, h->sck_election, PORT_ELECTION, host.ip);
                 h->b_should_switch_manager = true;
             }
             h->update_election_answer(false);
