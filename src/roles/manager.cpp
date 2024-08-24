@@ -119,7 +119,8 @@ void *Manager::check_manager(void *ctx) {
     std::string ip = get_ip();
 
     while(1) {
-        for (KnownHost host: m->hosts) {
+        for (auto it = m->hosts.begin(); it != m->hosts.end(); it++) {
+            KnownHost &host = *it;
             if (host.state == HostState::Managing && ip != host.ip) {
                 // there are more than two managers
                 host.state = HostState::Asleep;
