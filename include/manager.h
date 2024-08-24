@@ -24,7 +24,7 @@ private:
     static void* command(void *ctx);
     static void* interface(void *ctx);
     static void* input(void *ctx);
-    // static void* check_manager(void *ctx);
+    static void* check_manager(void *ctx);
     static void* update_rm(void *ctx);
 
     std::pair<int, std::string> check_input(std::string input);
@@ -52,8 +52,10 @@ private:
     const int sleep_output = 500 * 1000;
     const int sleep_update = 500 * 1000;
     const int sleep_input = 25 * 1000;
+    const int sleep_managers_check = 500 * 1000;
     const int input_timeout = 25; /* 25 ms */
     const int tcp_timeout = 250 * 1000;
+    
 };
 
 #endif //_MANAGER_H

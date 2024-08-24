@@ -13,7 +13,7 @@ void Manager::init() {
     pthread_create(&this->t_command, NULL, Manager::command, this);
     pthread_create(&this->t_interface, NULL, Manager::interface, this);
     pthread_create(&this->t_input, NULL, Manager::input, this);
-    // pthread_create(&this->t_check_manager, NULL, Manager::check_manager, this);
+    pthread_create(&this->t_check_manager, NULL, Manager::check_manager, this);
 
     pthread_join(this->t_discovery, NULL);
     pthread_join(this->t_monitoring, NULL);
@@ -21,7 +21,7 @@ void Manager::init() {
     pthread_join(this->t_command, NULL);
     pthread_join(this->t_interface, NULL);
     pthread_join(this->t_input, NULL);
-    // pthread_join(this->t_check_manager, NULL);
+    pthread_join(this->t_check_manager, NULL);
 
     pthread_mutex_lock(&this->mutex_ncurses);
     endwin();
@@ -113,16 +113,21 @@ void Manager::send_wake_on_lan_packet(std::string mac_address) {
     pclose(fp);
 }
 
-/*
 void *Manager::check_manager(void *ctx) {
+    Manager *m = ((Manager *) ctx);
+
+    std::string ip = get_ip();
+
     while(1) {
-        for (KnownHost h: this->hosts) {
-            if (h.state == HostState::Managing) {
+        for (KnownHost host: m->hosts) {
+            if (host.state == HostState::Managing && ip != host.ip) {
+                // there are more than two managers
+                host.state = HostState::Asleep;
             }
         }
+        usleep(m->sleep_managers_check);
     }
 }
-*/
 
 void *Manager::discovery(void *ctx) {
     Manager *m = ((Manager *) ctx);
@@ -199,7 +204,7 @@ void *Manager::monitoring(void *ctx) {
         for (auto it = m->hosts.begin(); it != m->hosts.end(); it++) {
             KnownHost &host = *it;
 
-            if(!host.state == HostState::Managing) {
+            if(!(host.state == HostState::Managing)) {
                 if (!host.connected) {
                     int sockfd = socket(AF_INET, SOCK_STREAM, 0);
                     if (sockfd < 0) {
