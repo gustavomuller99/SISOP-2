@@ -204,7 +204,7 @@ void *Manager::monitoring(void *ctx) {
         for (auto it = m->hosts.begin(); it != m->hosts.end(); it++) {
             KnownHost &host = *it;
 
-            if(host.state != HostState::Managing) {
+            if(host.state != HostState::Managing && host.state != HostState::ManagerAsleep) {
                 if (!host.connected) {
                     int sockfd = socket(AF_INET, SOCK_STREAM, 0);
                     if (sockfd < 0) {

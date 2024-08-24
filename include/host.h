@@ -12,7 +12,8 @@ enum HostState {
     Awaken = 3,
     RunElection = 4,
     Exit = 5,
-    Managing = 6
+    Managing = 6,
+    ManagerAsleep = 7
 };
 
 struct ManagerInfo {
