@@ -1,6 +1,22 @@
 #include <manager.h>
 
 void Manager::init() {
+    std::string ip = get_ip();
+    long id = hash(ip.substr(ip.size() - 3, 3));
+
+    char hostname[BUFFER_SIZE];
+    gethostname(hostname, BUFFER_SIZE);
+
+    this->add_host({
+            ip,
+            get_mac_address(),
+            hostname,
+            HostState::Managing,
+            false,
+            0,
+            id
+        });
+
     pthread_mutex_lock(&this->mutex_ncurses);
     initscr();
     refresh();
@@ -122,8 +138,9 @@ void *Manager::check_manager(void *ctx) {
         for (auto it = m->hosts.begin(); it != m->hosts.end(); it++) {
             KnownHost &host = *it;
             if (host.state == HostState::Managing && ip != host.ip) {
-                // there are more than two managers
                 host.state = HostState::Asleep;
+
+                // Send message to turn ex-manager into host 
             }
         }
         usleep(m->sleep_managers_check);
@@ -132,22 +149,6 @@ void *Manager::check_manager(void *ctx) {
 
 void *Manager::discovery(void *ctx) {
     Manager *m = ((Manager *) ctx);
-
-    std::string ip = get_ip();
-    long id = hash(ip.substr(ip.size() - 3, 3));
-
-    char hostname[BUFFER_SIZE];
-    gethostname(hostname, BUFFER_SIZE);
-
-    m->add_host({
-            ip,
-            get_mac_address(),
-            hostname,
-            HostState::Managing,
-            false,
-            0,
-            id
-        });
 
     // creating udp server socket file descriptor
     int trueflag = 1;
