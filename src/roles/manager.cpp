@@ -7,21 +7,21 @@ void Manager::init() {
     curs_set(false);
     pthread_mutex_unlock(&this->mutex_ncurses);
 
+    pthread_create(&this->t_check_manager, NULL, Manager::check_manager, this);
     pthread_create(&this->t_discovery, NULL, Manager::discovery, this);
     pthread_create(&this->t_monitoring, NULL, Manager::monitoring, this);
     pthread_create(&this->t_update_rm, NULL, Manager::update_rm, this);
     pthread_create(&this->t_command, NULL, Manager::command, this);
     pthread_create(&this->t_interface, NULL, Manager::interface, this);
     pthread_create(&this->t_input, NULL, Manager::input, this);
-    pthread_create(&this->t_check_manager, NULL, Manager::check_manager, this);
 
+    pthread_join(this->t_check_manager, NULL);
     pthread_join(this->t_discovery, NULL);
     pthread_join(this->t_monitoring, NULL);
     pthread_join(this->t_update_rm, NULL);
     pthread_join(this->t_command, NULL);
     pthread_join(this->t_interface, NULL);
     pthread_join(this->t_input, NULL);
-    pthread_join(this->t_check_manager, NULL);
 
     pthread_mutex_lock(&this->mutex_ncurses);
     endwin();
@@ -29,13 +29,13 @@ void Manager::init() {
 }
 
 void Manager::exit_handler(int sn, siginfo_t* t, void* ctx) {
+    pthread_cancel(this->t_check_manager);
     pthread_cancel(this->t_discovery);
     pthread_cancel(this->t_monitoring);
     pthread_cancel(this->t_command);
     pthread_cancel(this->t_update_rm);
     pthread_cancel(this->t_interface);
     pthread_cancel(this->t_input);
-    pthread_cancel(this->t_check_manager);
     close(this->sck_discovery);
     for (auto h : this->hosts) {
         if (h.connected) close(h.sockfd);
@@ -204,7 +204,7 @@ void *Manager::monitoring(void *ctx) {
         for (auto it = m->hosts.begin(); it != m->hosts.end(); it++) {
             KnownHost &host = *it;
 
-            if(!(host.state == HostState::Managing)) {
+            if(host.state != HostState::Managing) {
                 if (!host.connected) {
                     int sockfd = socket(AF_INET, SOCK_STREAM, 0);
                     if (sockfd < 0) {
