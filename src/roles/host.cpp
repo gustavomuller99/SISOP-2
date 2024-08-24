@@ -498,6 +498,7 @@ HostState state_from_string(std::string state) {
     if (state == "Discovery") return HostState::Discovery;
     if (state == "Asleep") return HostState::Asleep;
     if (state == "Run Election") return HostState::RunElection;
+    if (state == "Managing") return HostState::Managing;
     return HostState::Awaken;
 }
 
