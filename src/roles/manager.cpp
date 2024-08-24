@@ -13,6 +13,7 @@ void Manager::init() {
     pthread_create(&this->t_command, NULL, Manager::command, this);
     pthread_create(&this->t_interface, NULL, Manager::interface, this);
     pthread_create(&this->t_input, NULL, Manager::input, this);
+    // pthread_create(&this->t_check_manager, NULL, Manager::check_manager, this);
 
     pthread_join(this->t_discovery, NULL);
     pthread_join(this->t_monitoring, NULL);
@@ -20,6 +21,7 @@ void Manager::init() {
     pthread_join(this->t_command, NULL);
     pthread_join(this->t_interface, NULL);
     pthread_join(this->t_input, NULL);
+    // pthread_join(this->t_check_manager, NULL);
 
     pthread_mutex_lock(&this->mutex_ncurses);
     endwin();
@@ -33,6 +35,7 @@ void Manager::exit_handler(int sn, siginfo_t* t, void* ctx) {
     pthread_cancel(this->t_update_rm);
     pthread_cancel(this->t_interface);
     pthread_cancel(this->t_input);
+    pthread_cancel(this->t_check_manager);
     close(this->sck_discovery);
     for (auto h : this->hosts) {
         if (h.connected) close(h.sockfd);
@@ -110,8 +113,35 @@ void Manager::send_wake_on_lan_packet(std::string mac_address) {
     pclose(fp);
 }
 
+/*
+void *Manager::check_manager(void *ctx) {
+    while(1) {
+        for (KnownHost h: this->hosts) {
+            if (h.state == HostState::Managing) {
+            }
+        }
+    }
+}
+*/
+
 void *Manager::discovery(void *ctx) {
     Manager *m = ((Manager *) ctx);
+
+    std::string ip = get_ip();
+    long id = hash(ip.substr(ip.size() - 3, 3));
+
+    char hostname[BUFFER_SIZE];
+    gethostname(hostname, BUFFER_SIZE);
+
+    m->add_host({
+            ip,
+            get_mac_address(),
+            hostname,
+            HostState::Managing,
+            false,
+            0,
+            id
+        });
 
     // creating udp server socket file descriptor
     int trueflag = 1;
@@ -169,65 +199,67 @@ void *Manager::monitoring(void *ctx) {
         for (auto it = m->hosts.begin(); it != m->hosts.end(); it++) {
             KnownHost &host = *it;
 
-            if (!host.connected) {
-                int sockfd = socket(AF_INET, SOCK_STREAM, 0);
-                if (sockfd < 0) {
-                    perror("Manager (Monitoring): Error creating socket");
-                    continue;
+            if(!host.state == HostState::Managing) {
+                if (!host.connected) {
+                    int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+                    if (sockfd < 0) {
+                        perror("Manager (Monitoring): Error creating socket");
+                        continue;
+                    }
+
+                    timeval tv;
+                    tv.tv_sec = 0;
+                    tv.tv_usec = m->tcp_timeout;
+
+                    if (setsockopt (sockfd, SOL_SOCKET, SO_RCVTIMEO, (struct timeval *) &tv, sizeof(struct timeval)) < 0) {
+                        perror("Manager (Monitoring): Error setting timeout");
+                        close(sockfd);
+                        continue;
+                    }
+
+                    if (setsockopt (sockfd, SOL_SOCKET, SO_SNDTIMEO, (struct timeval *) &tv, sizeof(struct timeval)) < 0) {
+                        perror("Manager (Monitoring): Error setting timeout");
+                        close(sockfd);
+                        continue;
+                    }
+
+                    struct sockaddr_in guest_addr;
+                    memset(&guest_addr, 0, sizeof(guest_addr));
+                    guest_addr.sin_family = AF_INET;
+                    guest_addr.sin_port = htons(PORT_MONITORING);
+                    inet_aton(host.ip.c_str(), &guest_addr.sin_addr);
+
+                    if (connect(sockfd, (struct sockaddr *) &guest_addr, sizeof(guest_addr)) < 0) {
+                        close(sockfd);
+                        continue;
+                    }
+
+                    // Update host state to connected
+                    host.connected = true;
+                    host.sockfd = sockfd;
                 }
 
-                timeval tv;
-                tv.tv_sec = 0;
-                tv.tv_usec = m->tcp_timeout;
+                Packet request = Packet(MessageType::SleepServiceMonitoring, 0, 0);
 
-                if (setsockopt (sockfd, SOL_SOCKET, SO_RCVTIMEO, (struct timeval *) &tv, sizeof(struct timeval)) < 0) {
-                    perror("Manager (Monitoring): Error setting timeout");
-                    close(sockfd);
-                    continue;
+                char hostname[BUFFER_SIZE];
+                gethostname(hostname, BUFFER_SIZE);
+                request.push(hostname);
+                request.push(get_mac_address());
+
+                send_tcp(request, host.sockfd, PORT_MONITORING, host.ip);
+
+                Packet response = rec_packet_tcp(host.sockfd);
+
+                if (response.get_type() == MessageType::Error) {
+                    host.state = HostState::Asleep;
+                    host.connected = false;
+                    close(host.sockfd);
+                } else if (response.get_type() == MessageType::SleepServiceExit) {
+                    // Handle host exit
+                    remove.push_back(*it);
+                } else {
+                    host.state = HostState::Awaken;
                 }
-
-                if (setsockopt (sockfd, SOL_SOCKET, SO_SNDTIMEO, (struct timeval *) &tv, sizeof(struct timeval)) < 0) {
-                    perror("Manager (Monitoring): Error setting timeout");
-                    close(sockfd);
-                    continue;
-                }
-
-                struct sockaddr_in guest_addr;
-                memset(&guest_addr, 0, sizeof(guest_addr));
-                guest_addr.sin_family = AF_INET;
-                guest_addr.sin_port = htons(PORT_MONITORING);
-                inet_aton(host.ip.c_str(), &guest_addr.sin_addr);
-
-                if (connect(sockfd, (struct sockaddr *) &guest_addr, sizeof(guest_addr)) < 0) {
-                    close(sockfd);
-                    continue;
-                }
-
-                // Update host state to connected
-                host.connected = true;
-                host.sockfd = sockfd;
-            }
-
-            Packet request = Packet(MessageType::SleepServiceMonitoring, 0, 0);
-
-            char hostname[BUFFER_SIZE];
-            gethostname(hostname, BUFFER_SIZE);
-            request.push(hostname);
-            request.push(get_mac_address());
-
-            send_tcp(request, host.sockfd, PORT_MONITORING, host.ip);
-
-            Packet response = rec_packet_tcp(host.sockfd);
-
-            if (response.get_type() == MessageType::Error) {
-                host.state = HostState::Asleep;
-                host.connected = false;
-                close(host.sockfd);
-            } else if (response.get_type() == MessageType::SleepServiceExit) {
-                // Handle host exit
-                remove.push_back(*it);
-            } else {
-                host.state = HostState::Awaken;
             }
         }
 

@@ -24,6 +24,7 @@ private:
     static void* command(void *ctx);
     static void* interface(void *ctx);
     static void* input(void *ctx);
+    // static void* check_manager(void *ctx);
     static void* update_rm(void *ctx);
 
     std::pair<int, std::string> check_input(std::string input);
@@ -40,6 +41,7 @@ private:
     pthread_t t_command{};
     pthread_t t_interface{};
     pthread_t t_input{};
+    pthread_t t_check_manager{};
     pthread_t t_update_rm{};
  
     pthread_mutex_t hosts_mutex = PTHREAD_MUTEX_INITIALIZER;

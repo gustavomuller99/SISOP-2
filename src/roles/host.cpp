@@ -512,7 +512,7 @@ std::string string_from_state(int state) {
         case HostState::RunElection:
             return "Run Election";
         default:
-            return "Unknown";
+            return "Managing";
     }
 }
 
