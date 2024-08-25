@@ -63,6 +63,22 @@ void Manager::exit_handler(int sn, siginfo_t* t, void* ctx) {
     exit(0);
 }
 
+
+void Manager::exit_handler_sleep(int sn, siginfo_t* t, void* ctx) {
+    pthread_cancel(this->t_check_sleep_manager);
+    pthread_cancel(this->t_check_sleep_manager_listen);
+    pthread_cancel(this->t_discovery);
+    pthread_cancel(this->t_monitoring);
+    pthread_cancel(this->t_command);
+    pthread_cancel(this->t_update_rm);
+    pthread_cancel(this->t_interface);
+    pthread_cancel(this->t_input);
+    close(this->sck_discovery);
+    for (auto h : this->hosts) {
+        if (h.connected) close(h.sockfd);
+    }
+}
+
 void Manager::add_host(KnownHost host) {
     pthread_mutex_lock(&hosts_mutex);
     if (!this->has_host(host.name)) {

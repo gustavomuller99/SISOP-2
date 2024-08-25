@@ -17,6 +17,7 @@ public:
     /* --- */
     bool has_host(std::string name);
     void exit_handler(int sn, siginfo_t* t, void* ctx);
+    void exit_handler_sleep(int sn, siginfo_t* t, void* ctx);
     bool b_should_become_host = false;
 
 private:
