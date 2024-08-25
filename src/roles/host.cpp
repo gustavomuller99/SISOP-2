@@ -494,32 +494,6 @@ void *Host::input(void *ctx) {
 
 /* utils */
 
-HostState state_from_string(std::string state) {
-    if (state == "Discovery") return HostState::Discovery;
-    if (state == "Asleep") return HostState::Asleep;
-    if (state == "Run Election") return HostState::RunElection;
-    if (state == "Managing") return HostState::Managing;
-    if (state == "Man Asleep") return HostState::ManagerAsleep;
-    return HostState::Awaken;
-}
-
-std::string string_from_state(int state) {
-    switch (state) {
-        case HostState::Discovery:
-            return "Discovery";
-        case HostState::Asleep:
-            return "Asleep";
-        case HostState::Awaken:
-            return "Awaken";
-        case HostState::RunElection:
-            return "Run Election";
-        case HostState::ManagerAsleep:
-            return "Man Asleep";
-        default:
-            return "Managing";
-    }
-}
-
 WINDOW *create_newwin(int height, int width, int starty, int startx) {
     WINDOW *local_win;
 

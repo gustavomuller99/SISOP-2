@@ -29,7 +29,18 @@ enum MessageType {
     ElectionServiceAnswer = 6,
     ElectionServiceCoordinator = 7,
     ManagerSleepCheck = 8,
+    ManagerWillBecomeHost = 9,
     Error = 65488
+};
+
+enum HostState {
+    Discovery = 1,
+    Asleep = 2,
+    Awaken = 3,
+    RunElection = 4,
+    Exit = 5,
+    Managing = 6,
+    ManagerAsleep = 7
 };
 
 enum CommandType {
@@ -83,5 +94,8 @@ void send_tcp(Packet p, int sockfd, int port, std::string ip = "");
 /* waits for packcage and parses into object */
 Packet rec_packet(int sockfd);
 Packet rec_packet_tcp(int sockfd);
+
+HostState state_from_string(std::string state);
+std::string string_from_state(int state);
 
 #endif //_MESSAGE_H

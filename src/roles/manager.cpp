@@ -215,7 +215,32 @@ void *Manager::check_sleep_manager_listen(void *ctx) {
         }
 
         else if (request.get_type() == MessageType::ManagerSleepCheck) {
+            Packet response = Packet(MessageType::ManagerWillBecomeHost, 0, 0);
+
+            std::string ip = get_ip();
+            long id = hash(ip.substr(ip.size() - 3, 3));
+
+            char hostname[BUFFER_SIZE];
+            gethostname(hostname, BUFFER_SIZE);
+
+            request.push(std::to_string(id));
+            request.push(string_from_state(HostState::ManagerAsleep));
+            request.push(ip);
+            request.push(get_mac_address());
+            response.push(hostname);
+
+            send_udp(response, m->sck_manager_sleep_listen, PORT_MANAGER_SLEEP, request.src_ip);
             m->b_should_become_host = true;
+        }
+
+        else if (request.get_type() == MessageType::ManagerWillBecomeHost) {
+            std::string name = request.pop();
+            std::string mac = request.pop();
+            std::string ip = request.pop();
+            HostState state = state_from_string(request.pop());
+            long id = stol(request.pop());
+    
+            m->remove_host(KnownHost {ip, mac, name, state, false, 0, id});
         }
     }
     close(m->sck_manager_sleep_listen);

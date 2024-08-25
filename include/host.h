@@ -6,16 +6,6 @@
 #include <iostream>
 #include <ncurses.h>
 
-enum HostState {
-    Discovery = 1,
-    Asleep = 2,
-    Awaken = 3,
-    RunElection = 4,
-    Exit = 5,
-    Managing = 6,
-    ManagerAsleep = 7
-};
-
 struct ManagerInfo {
     std::string ip = "", mac = "", name = "";
 };
@@ -93,8 +83,6 @@ private:
     const int tcp_timeout = 5; /* 5 s */
 };
 
-HostState state_from_string(std::string state);
-std::string string_from_state(int state);
 WINDOW *create_newwin(int height, int width, int starty, int startx);
 void destroy_win(WINDOW *local_win);
 
