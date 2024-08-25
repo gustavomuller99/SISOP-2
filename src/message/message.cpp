@@ -195,6 +195,7 @@ std::string get_mac_address() {
     }
 
     close(sock);
+    return "";
 }
 
 std::string get_ip() {
