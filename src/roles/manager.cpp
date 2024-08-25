@@ -24,7 +24,7 @@ void Manager::init() {
     pthread_mutex_unlock(&this->mutex_ncurses);
 
     pthread_create(&this->t_check_sleep_manager, NULL, Manager::check_sleep_manager, this);
-    pthread_create(&this->t_check_sleep_manager, NULL, Manager::check_sleep_manager_listen, this);
+    pthread_create(&this->t_check_sleep_manager_listen, NULL, Manager::check_sleep_manager_listen, this);
     pthread_create(&this->t_discovery, NULL, Manager::discovery, this);
     pthread_create(&this->t_monitoring, NULL, Manager::monitoring, this);
     pthread_create(&this->t_update_rm, NULL, Manager::update_rm, this);
@@ -138,14 +138,16 @@ void *Manager::check_sleep_manager(void *ctx) {
     std::string ip = get_ip();
 
     if ((m->sck_manager_sleep = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)
-            exit(EXIT_FAILURE);
+        exit(EXIT_FAILURE);
 
     while(1) {
         for (auto it = m->hosts.begin(); it != m->hosts.end(); it++) {
             KnownHost &host = *it;
             if (host.state == HostState::Managing && ip != host.ip) {
-                host.state = HostState::Asleep;
+                host.state = HostState::ManagerAsleep;
+            }
 
+            if(host.state == HostState::ManagerAsleep) {
                 // Send message to turn ex-manager into host
                 Packet request = Packet(MessageType::ManagerSleepCheck, 0, 0);
                 send_udp(request, m->sck_manager_sleep, PORT_MANAGER_SLEEP, host.ip);
@@ -265,7 +267,7 @@ void *Manager::monitoring(void *ctx) {
         for (auto it = m->hosts.begin(); it != m->hosts.end(); it++) {
             KnownHost &host = *it;
 
-            if(host.state != HostState::Managing) {
+            if(host.state != HostState::Managing && host.state != HostState::ManagerAsleep) {
                 if (!host.connected) {
                     int sockfd = socket(AF_INET, SOCK_STREAM, 0);
                     if (sockfd < 0) {
