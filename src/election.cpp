@@ -24,7 +24,7 @@ void Election::switch_manager() {
 }
 
 void Election::switch_host() {
-    m->exit_handler(0, nullptr, nullptr);
+    // m->exit_handler(0, nullptr, nullptr);
     
     running_as = RunningType::AsHost;
     h = std::make_unique<Host>(Host());
