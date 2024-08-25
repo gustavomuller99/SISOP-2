@@ -38,6 +38,8 @@ private:
     int sck_management;
     int sck_manager_sleep;
 
+    bool b_should_become_host = false;
+
     pthread_t t_discovery{};
     pthread_t t_monitoring{};
     pthread_t t_command{};

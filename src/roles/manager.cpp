@@ -162,6 +162,46 @@ void *Manager::check_sleep_manager(void *ctx) {
 void *Manager::check_sleep_manager_listen(void *ctx) {
     Manager *m = ((Manager *) ctx);
 
+    int trueflag = 1;
+    struct sockaddr_in recv_addr;
+
+    if ((m->sck_manager_sleep = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
+        exit(EXIT_FAILURE);
+
+    if (setsockopt(m->sck_manager_sleep, SOL_SOCKET, SO_REUSEADDR, &trueflag, sizeof trueflag) < 0)
+        exit(EXIT_FAILURE);
+
+    memset(&recv_addr, 0, sizeof recv_addr);
+
+    recv_addr.sin_family = AF_INET;
+    recv_addr.sin_port = (in_port_t) htons(PORT_MANAGER_SLEEP);
+    recv_addr.sin_addr.s_addr = INADDR_ANY;
+
+    if (bind(m->sck_manager_sleep, (struct sockaddr *) &recv_addr, sizeof recv_addr) < 0)
+        exit(EXIT_FAILURE);
+
+    timeval tv;
+    tv.tv_sec = 1;
+    tv.tv_usec = 0;
+
+    if (setsockopt (m->sck_manager_sleep, SOL_SOCKET, SO_RCVTIMEO, (struct timeval *) &tv, sizeof(struct timeval)) < 0) {
+        perror("Listen (Listen): Error setting timeout");
+        close(m->sck_manager_sleep);
+    }
+
+    while(1) {
+        Packet request = rec_packet(m->sck_manager_sleep);
+
+        if (request.get_type() == MessageType::Error) {
+            continue;
+        }
+
+        else if (request.get_type() == MessageType::ManagerSleepCheck) {
+            m->b_should_become_host = true;
+            printf("I have Received the message");
+            exit(EXIT_FAILURE);
+        }
+    }
     return 0;
 }
 
