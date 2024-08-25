@@ -200,8 +200,6 @@ void *Manager::check_sleep_manager_listen(void *ctx) {
 
         else if (request.get_type() == MessageType::ManagerSleepCheck) {
             m->b_should_become_host = true;
-            printf("I have Received the message");
-            exit(EXIT_FAILURE);
         }
     }
     close(m->sck_manager_sleep_listen);
