@@ -37,6 +37,7 @@ private:
     int sck_discovery;
     int sck_management;
     int sck_manager_sleep;
+    int sck_manager_sleep_listen;
 
     bool b_should_become_host = false;
 
