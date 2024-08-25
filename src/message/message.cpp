@@ -195,9 +195,6 @@ std::string get_mac_address() {
     }
 
     close(sock);
-
-    printf("ERROR getting MAC Address\n");
-    exit(EXIT_FAILURE); 
 }
 
 std::string get_ip() {
