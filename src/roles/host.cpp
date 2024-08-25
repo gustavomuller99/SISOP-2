@@ -99,10 +99,14 @@ void Host::create_monitoring_socket() {
     listen(sck_monitoring, 5);
 
     if ((sck_monitoring = accept(sck_monitoring, (struct sockaddr *) &manager_addr, &addr_len)) < 0) {
-        manager_up = false;
+        manager_conn_count++;
+        if (manager_conn_count == 3) {
+            manager_up = false;
+        }
         return;
     }
 
+    manager_conn_count = 0;
     manager_up = true;
     m_info.ip = inet_ntoa(manager_addr.sin_addr);
 }

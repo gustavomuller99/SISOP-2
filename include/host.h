@@ -54,6 +54,8 @@ private:
     int sck_listen;
     int sck_election;
 
+    int manager_conn_count = 0;
+
     bool b_election_answer = false;
 
     ManagerInfo m_info = {"-1", "-1", "-1"};
@@ -76,7 +78,7 @@ private:
     const int sleep_monitoring = 50 * 1000;
     const int sleep_check_manager = 5000 * 1000;
     const int sleep_run_election = 500 * 1000;
-    const int sleep_answer = 5000 * 1000; 
+    const int sleep_answer = 7000 * 1000; 
     const int sleep_output = 500 * 1000;
     const int sleep_input = 25 * 1000;
     const int input_timeout = 25;
