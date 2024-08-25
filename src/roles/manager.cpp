@@ -63,7 +63,6 @@ void Manager::exit_handler(int sn, siginfo_t* t, void* ctx) {
     exit(0);
 }
 
-
 void Manager::exit_handler_sleep(int sn, siginfo_t* t, void* ctx) {
     pthread_cancel(this->t_check_sleep_manager);
     pthread_cancel(this->t_check_sleep_manager_listen);
@@ -175,8 +174,6 @@ void *Manager::check_sleep_manager(void *ctx) {
     return 0;
 }
 
-
-
 void *Manager::check_sleep_manager_listen(void *ctx) {
     Manager *m = ((Manager *) ctx);
 
@@ -238,7 +235,7 @@ void *Manager::check_sleep_manager_listen(void *ctx) {
             std::string mac = request.pop();
             std::string ip = request.pop();
             HostState state = state_from_string(request.pop());
-            long id = 1;
+            long id = stol(request.pop());
     
             m->remove_host(KnownHost {ip, mac, name, state, false, 0, id});
         }
@@ -246,7 +243,6 @@ void *Manager::check_sleep_manager_listen(void *ctx) {
     close(m->sck_manager_sleep_listen);
     return 0;
 }
-
 
 void *Manager::discovery(void *ctx) {
     Manager *m = ((Manager *) ctx);
