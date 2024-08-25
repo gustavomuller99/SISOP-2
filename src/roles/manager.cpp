@@ -138,9 +138,11 @@ void *Manager::check_manager(void *ctx) {
         for (auto it = m->hosts.begin(); it != m->hosts.end(); it++) {
             KnownHost &host = *it;
             if (host.state == HostState::Managing && ip != host.ip) {
-                host.state = HostState::Asleep;
+                host.state = HostState::ManagerAsleep;
 
-                // Send message to turn ex-manager into host 
+                // Send message to turn ex-manager into host
+
+
             }
         }
         usleep(m->sleep_managers_check);
