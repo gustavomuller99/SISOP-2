@@ -23,7 +23,8 @@ void Manager::init() {
     curs_set(false);
     pthread_mutex_unlock(&this->mutex_ncurses);
 
-    pthread_create(&this->t_check_manager, NULL, Manager::check_manager, this);
+    pthread_create(&this->t_check_sleep_manager, NULL, Manager::check_sleep_manager, this);
+    pthread_create(&this->t_check_sleep_manager, NULL, Manager::check_sleep_manager_listen, this);
     pthread_create(&this->t_discovery, NULL, Manager::discovery, this);
     pthread_create(&this->t_monitoring, NULL, Manager::monitoring, this);
     pthread_create(&this->t_update_rm, NULL, Manager::update_rm, this);
@@ -31,7 +32,8 @@ void Manager::init() {
     pthread_create(&this->t_interface, NULL, Manager::interface, this);
     pthread_create(&this->t_input, NULL, Manager::input, this);
 
-    pthread_join(this->t_check_manager, NULL);
+    pthread_join(this->t_check_sleep_manager, NULL);
+    pthread_join(this->t_check_sleep_manager_listen, NULL);
     pthread_join(this->t_discovery, NULL);
     pthread_join(this->t_monitoring, NULL);
     pthread_join(this->t_update_rm, NULL);
@@ -45,7 +47,8 @@ void Manager::init() {
 }
 
 void Manager::exit_handler(int sn, siginfo_t* t, void* ctx) {
-    pthread_cancel(this->t_check_manager);
+    pthread_cancel(this->t_check_sleep_manager);
+    pthread_cancel(this->t_check_sleep_manager_listen);
     pthread_cancel(this->t_discovery);
     pthread_cancel(this->t_monitoring);
     pthread_cancel(this->t_command);
@@ -129,10 +132,13 @@ void Manager::send_wake_on_lan_packet(std::string mac_address) {
     pclose(fp);
 }
 
-void *Manager::check_manager(void *ctx) {
+void *Manager::check_sleep_manager(void *ctx) {
     Manager *m = ((Manager *) ctx);
 
     std::string ip = get_ip();
+
+    if ((m->sck_manager_sleep = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)
+            exit(EXIT_FAILURE);
 
     while(1) {
         for (auto it = m->hosts.begin(); it != m->hosts.end(); it++) {
@@ -141,13 +147,24 @@ void *Manager::check_manager(void *ctx) {
                 host.state = HostState::Asleep;
 
                 // Send message to turn ex-manager into host
-
-
+                Packet request = Packet(MessageType::ManagerSleepCheck, 0, 0);
+                send_udp(request, m->sck_manager_sleep, PORT_MANAGER_SLEEP, host.ip);
             }
         }
         usleep(m->sleep_managers_check);
     }
+    close(m->sck_manager_sleep);
+    return 0;
 }
+
+
+
+void *Manager::check_sleep_manager_listen(void *ctx) {
+    Manager *m = ((Manager *) ctx);
+
+    return 0;
+}
+
 
 void *Manager::discovery(void *ctx) {
     Manager *m = ((Manager *) ctx);

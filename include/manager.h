@@ -24,7 +24,8 @@ private:
     static void* command(void *ctx);
     static void* interface(void *ctx);
     static void* input(void *ctx);
-    static void* check_manager(void *ctx);
+    static void* check_sleep_manager(void *ctx);
+    static void* check_sleep_manager_listen(void *ctx);
     static void* update_rm(void *ctx);
 
     std::pair<int, std::string> check_input(std::string input);
@@ -35,13 +36,15 @@ private:
 
     int sck_discovery;
     int sck_management;
+    int sck_manager_sleep;
 
     pthread_t t_discovery{};
     pthread_t t_monitoring{};
     pthread_t t_command{};
     pthread_t t_interface{};
     pthread_t t_input{};
-    pthread_t t_check_manager{};
+    pthread_t t_check_sleep_manager{};
+    pthread_t t_check_sleep_manager_listen{};
     pthread_t t_update_rm{};
  
     pthread_mutex_t hosts_mutex = PTHREAD_MUTEX_INITIALIZER;

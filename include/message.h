@@ -14,6 +14,7 @@ const int PORT_DISCOVERY = 30000;
 const int PORT_MONITORING = 31000;
 const int PORT_MANAGEMENT = 32000;
 const int PORT_ELECTION = 33000;
+const int PORT_MANAGER_SLEEP = 34000;
 
 const int BUFFER_SIZE = 256;
 const int INPUT_SIZE = 256;
@@ -27,6 +28,7 @@ enum MessageType {
     ElectionServiceEletcion = 5,
     ElectionServiceAnswer = 6,
     ElectionServiceCoordinator = 7,
+    ManagerSleepCheck = 8,
     Error = 65488
 };
 
