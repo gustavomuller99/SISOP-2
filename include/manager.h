@@ -17,6 +17,7 @@ public:
     /* --- */
     bool has_host(std::string name);
     void exit_handler(int sn, siginfo_t* t, void* ctx);
+    bool b_should_become_host = false;
 
 private:
     static void* discovery(void *ctx);
@@ -38,8 +39,6 @@ private:
     int sck_management;
     int sck_manager_sleep;
     int sck_manager_sleep_listen;
-
-    bool b_should_become_host = false;
 
     pthread_t t_discovery{};
     pthread_t t_monitoring{};
