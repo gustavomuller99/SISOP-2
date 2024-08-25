@@ -238,7 +238,7 @@ void *Manager::check_sleep_manager_listen(void *ctx) {
             std::string mac = request.pop();
             std::string ip = request.pop();
             HostState state = state_from_string(request.pop());
-            long id = stol(request.pop());
+            long id = 1;
     
             m->remove_host(KnownHost {ip, mac, name, state, false, 0, id});
         }
