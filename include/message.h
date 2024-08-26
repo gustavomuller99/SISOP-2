@@ -28,8 +28,6 @@ enum MessageType {
     ElectionServiceEletcion = 5,
     ElectionServiceAnswer = 6,
     ElectionServiceCoordinator = 7,
-    ManagerSleepCheck = 8,
-    ManagerWillBecomeHost = 9,
     Error = 65488
 };
 
@@ -39,8 +37,7 @@ enum HostState {
     Awaken = 3,
     RunElection = 4,
     Exit = 5,
-    Managing = 6,
-    ManagerAsleep = 7
+    Managing = 6
 };
 
 enum CommandType {

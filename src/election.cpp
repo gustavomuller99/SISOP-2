@@ -18,13 +18,14 @@ void Election::switch_manager() {
     gethostname(hostname, BUFFER_SIZE);
     
     for (auto c : copy) 
-        if(c.name != hostname) m->add_host(c);
+        if(c.name != hostname && c.state != HostState::Managing) 
+            m->add_host(c);
 
     pthread_create(&this->t_manager, NULL, Election::manager, this);
 }
 
 void Election::switch_host() {
-    m->exit_handler_sleep(0, nullptr, nullptr);
+    m->exit_handler(0, nullptr, nullptr);
     
     running_as = RunningType::AsHost;
     h = std::make_unique<Host>(Host());
@@ -63,6 +64,8 @@ void *Election::check(void *ctx) {
             if (e->h->b_should_switch_manager)
                 e->switch_manager();
         } else {
+            if (e->m->b_should_exit_election) 
+                break;
             if (e->m->b_should_become_host)
                 e->switch_host();
         }

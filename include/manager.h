@@ -17,8 +17,8 @@ public:
     /* --- */
     bool has_host(std::string name);
     void exit_handler(int sn, siginfo_t* t, void* ctx);
-    void exit_handler_sleep(int sn, siginfo_t* t, void* ctx);
     bool b_should_become_host = false;
+    bool b_should_exit_election = false;
 
 private:
     static void* discovery(void *ctx);
@@ -26,8 +26,6 @@ private:
     static void* command(void *ctx);
     static void* interface(void *ctx);
     static void* input(void *ctx);
-    static void* check_sleep_manager(void *ctx);
-    static void* check_sleep_manager_listen(void *ctx);
     static void* update_rm(void *ctx);
 
     std::pair<int, std::string> check_input(std::string input);
@@ -37,17 +35,14 @@ private:
     std::deque<std::pair<int, std::string>> cmd;
 
     int sck_discovery;
-    int sck_management;
-    int sck_manager_sleep;
-    int sck_manager_sleep_listen;
+
+    int manager_conn_count = 0;
 
     pthread_t t_discovery{};
     pthread_t t_monitoring{};
     pthread_t t_command{};
     pthread_t t_interface{};
     pthread_t t_input{};
-    pthread_t t_check_sleep_manager{};
-    pthread_t t_check_sleep_manager_listen{};
     pthread_t t_update_rm{};
  
     pthread_mutex_t hosts_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -58,7 +53,6 @@ private:
     const int sleep_output = 500 * 1000;
     const int sleep_update = 500 * 1000;
     const int sleep_input = 25 * 1000;
-    const int sleep_managers_check = 500 * 1000;
     const int input_timeout = 25; /* 25 ms */
     const int tcp_timeout = 250 * 1000;
     

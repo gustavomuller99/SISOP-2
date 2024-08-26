@@ -109,8 +109,6 @@ void send_udp(Packet p, int sockfd, int port, std::string ip) {
         (const struct sockaddr *) &serv_addr,
         sizeof(serv_addr));
 
-    if (r < 0) perror("?: ");
-
     return;
 }
 
@@ -246,7 +244,6 @@ HostState state_from_string(std::string state) {
     if (state == "Asleep") return HostState::Asleep;
     if (state == "Run Election") return HostState::RunElection;
     if (state == "Managing") return HostState::Managing;
-    if (state == "Man Asleep") return HostState::ManagerAsleep;
     return HostState::Awaken;
 }
 
@@ -260,8 +257,6 @@ std::string string_from_state(int state) {
             return "Awaken";
         case HostState::RunElection:
             return "Run Election";
-        case HostState::ManagerAsleep:
-            return "Man Asleep";
         default:
             return "Managing";
     }
